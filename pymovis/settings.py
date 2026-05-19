@@ -168,4 +168,54 @@ PARSER_ARGS = [
             "help": "View-up vector of camera",
         },
     },
+    {
+        "args": ["-ca", "--camera_axis"],
+        "kwargs": {
+            "default": None,
+            "choices": ["X", "Y", "Z", "x", "y", "z"],
+            "help": (
+                "Auto camera axis. "
+                "If set, camera position is computed to fit the molecule along the selected axis."
+            ),
+        },
+    },
+    {
+        "args": ["--camera_center_atoms"],
+        "kwargs": {
+            "nargs": "+",
+            "type": int,
+            "default": None,
+            "metavar": "ATOM",
+            "help": (
+                "Atom indices (0-based) used to determine the camera center. "
+                "One atom uses that atom position; two or more use the centroid."
+            ),
+        },
+    },
+    {
+        "args": ["--camera_axis_atoms"],
+        "kwargs": {
+            "nargs": "+",
+            "type": int,
+            "default": None,
+            "metavar": "ATOM",
+            "help": (
+                "Atom indices (0-based) used to determine the camera view axis. "
+                "Two atoms define a line; three or more define a plane normal."
+            ),
+        },
+    },
+    {
+        "args": ["--camera_up_atoms"],
+        "kwargs": {
+            "nargs": "+",
+            "type": int,
+            "default": None,
+            "metavar": "ATOM",
+            "help": (
+                "Atom indices (0-based) used to determine the camera up axis. "
+                "Two atoms define a line; three or more define a plane normal."
+            ),
+        },
+    },
 ]

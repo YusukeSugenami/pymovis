@@ -8,6 +8,11 @@ import argparse
 
 from .settings import *
 from .load_mol import load_inp
+from .camera_utils import (
+    infer_atom_axis_camera_fit_from_coords,
+    infer_axis_camera_fit_from_coords,
+    infer_center_from_atom_indices,
+)
 
 
 ##############################################
@@ -198,6 +203,10 @@ def savemo(
     camera_pos: list[float] | None = None,
     camera_focal: list[float] | None = None,
     camera_up: list[float] | None = None,
+    camera_axis: str | None = None,
+    camera_center_atoms: list[int] | int | None = None,
+    camera_axis_atoms: list[int] | int | None = None,
+    camera_up_atoms: list[int] | int | None = None,
     transparent_background: bool = True,
 ) -> None:
     """
@@ -210,6 +219,10 @@ def savemo(
         camera_pos: Optional list of 3 floats specifying the camera position (default: None).
         camera_focal: Optional list of 3 floats specifying the camera focal point (default: None).
         camera_up: Optional list of 3 floats specifying the camera up vector (default: None).
+        camera_axis: Optional axis name (X/Y/Z) for automatic camera placement.
+        camera_center_atoms: Atom indices used for automatic camera center.
+        camera_axis_atoms: Atom indices used for automatic camera view axis.
+        camera_up_atoms: Atom indices used for automatic camera up axis.
         transparent_background: Whether to use a transparent background for the saved images (default: True).
     Returns:
         None
@@ -249,6 +262,44 @@ def savemo(
             or moldata.grid_vecs is None
         ):
             raise ValueError("molecular grid data is incomplete")
+
+        resolved_camera_pos = camera_pos
+        resolved_camera_focal = camera_focal
+        resolved_camera_up = camera_up
+
+        if camera_center_atoms is not None and camera_focal is None:
+            resolved_camera_focal = infer_center_from_atom_indices(
+                moldata.coords,
+                camera_center_atoms,
+            )
+
+        if camera_axis_atoms is not None or camera_up_atoms is not None:
+            if camera_axis_atoms is None or camera_up_atoms is None:
+                raise ValueError(
+                    "camera_axis_atoms and camera_up_atoms must be specified together"
+                )
+            resolved_camera_pos, resolved_camera_focal, resolved_camera_up = (
+                infer_atom_axis_camera_fit_from_coords(
+                    moldata.coords,
+                    camera_axis_atoms,
+                    camera_up_atoms,
+                    padding=PADDING,
+                    center=resolved_camera_focal,
+                )
+            )
+        elif camera_axis is not None:
+            resolved_camera_pos, resolved_camera_focal, resolved_camera_up = (
+                infer_axis_camera_fit_from_coords(
+                    moldata.coords,
+                    camera_axis,
+                    padding=PADDING,
+                    center=resolved_camera_focal,
+                )
+            )
+
+        if camera_up is not None:
+            resolved_camera_up = camera_up
+
         save_mo_plot(
             moldata.atomnos,
             moldata.coords,
@@ -257,9 +308,9 @@ def savemo(
             moldata.grid_vecs,
             image_name,
             iso=iso,
-            camera_pos=camera_pos,
-            camera_focal=camera_focal,
-            camera_up=camera_up,
+            camera_pos=resolved_camera_pos,
+            camera_focal=resolved_camera_focal,
+            camera_up=resolved_camera_up,
             transparent_background=transparent_background,
         )
 
@@ -279,6 +330,10 @@ def cli() -> None:
         camera_pos=args.camera_pos,
         camera_focal=args.camera_focal,
         camera_up=args.camera_up,
+        camera_axis=args.camera_axis,
+        camera_center_atoms=args.camera_center_atoms,
+        camera_axis_atoms=args.camera_axis_atoms,
+        camera_up_atoms=args.camera_up_atoms,
         transparent_background=args.transparent,
     )
 

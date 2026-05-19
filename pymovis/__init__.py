@@ -18,7 +18,10 @@ Example:
 
 from .pymovis import cli, savemo, save_mo_plot, build_volume_grid, build_molstruct
 from .load_mol import load_inp, MoleculeData
-from .camera_utils import infer_camera_from_coords
+from .camera_utils import (
+    infer_atom_axis_camera_fit_from_coords,
+    infer_axis_camera_fit_from_coords,
+)
 from .settings import ELEMENT_DATA, ORBITAL_COLORS
 
 __version__ = "0.1.0"
@@ -32,7 +35,8 @@ __all__ = [
     "build_molstruct",
     "load_inp",
     "MoleculeData",
-    "infer_camera_from_coords",
+    "infer_atom_axis_camera_fit_from_coords",
+    "infer_axis_camera_fit_from_coords",
     "ELEMENT_DATA",
     "ORBITAL_COLORS",
 ]

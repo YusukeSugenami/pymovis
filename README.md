@@ -1,240 +1,278 @@
-# PyMoVis: Molecular Orbital Visualization System
+# PyMoVis
 
-[![Python Version](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/downloads/)
-
-PyMoVis is a Python package for visualizing molecular orbitals (MOs) from quantum chemistry calculations. It reads molecular data from Gaussian output files and renders high-quality 3D isosurface visualizations using PyVista.
+PyMoVis is a Python package for visualizing molecular orbitals from quantum chemistry calculations. It reads Gaussian formatted checkpoint files, cube files, and PySCF checkpoint files, then renders 3D orbital isosurfaces with PyVista.
 
 ## Features
 
-- **Multiple Input Formats**: Support for Gaussian Formatted Checkpoint (fchk), cube files, and PySCF checkpoint files
-- **Flexible MO Selection**: Identify orbitals by index or using keywords (e.g., `HOMO`, `LUMO`, `HOMO-1`, `LUMO+2`)
-- **3D Visualization**: Render molecular orbital isosurfaces with PyVista
-- **Customizable Rendering**: Control camera positions, isosurface values, background colors, and more
-- **Automatic Grid Generation**: Evaluate orbitals on adaptive grids around the molecule
-- **Atom and Bond Visualization**: Display molecular structure with CPK coloring and bond detection
+- Visualize molecular orbitals from `fchk`, `cube`, and `chk` files
+- Select orbitals by index or by labels such as `HOMO`, `LUMO`, `HOMO-1`, `LUMO+2`
+- Render atoms, bonds, and orbital isosurfaces in 3D
+- Use automatic camera placement with axis-based views
+- Specify camera center and camera axes from atom indices
+- Save high-quality images with transparent backgrounds
 
 ## Installation
 
 ### From PyPI
+
 ```bash
 pip install pymovis
 ```
 
-### From Source
+### From source
+
 ```bash
 git clone https://github.com/YusukeSugenami/pymovis.git
 cd pymovis
 pip install -e .
 ```
 
-### Development Installation
+### Development install
+
 ```bash
 pip install -e ".[dev]"
 ```
 
 ## Quick Start
 
-### Basic Usage
+### Command line
 
-Visualize multiple orbitals:
-```python
-from pymovis import savemo
-
-savemo("molecule.fchk", ["HOMO", "LUMO", "LUMO+1"], iso=0.05)
-```
-
-### Command Line
+The package installs a `pymovis` command.
 
 ```bash
-pymovis molecule.fchk HOMO -o homo.png -i 0.05 --transparent True
+pymovis test.fchk HOMO
 ```
 
-## Usage Examples
+Visualize multiple orbitals:
+
+```bash
+pymovis test.fchk HOMO LUMO
+```
+
+Save to specific output files:
+
+```bash
+pymovis test.fchk HOMO LUMO -o homo.png lumo.png
+```
 
 ### Python API
 
-#### Basic MO Visualization
 ```python
 from pymovis import savemo
 
-# Visualize HOMO and LUMO with custom isosurface value
-savemo("water.fchk", ["HOMO", "LUMO"], iso=0.03)
+savemo("test.fchk", ["HOMO", "LUMO"])
 ```
 
-#### Advanced Rendering with Camera Control
-```python
-from pymovis import savemo
+## Camera Control
 
-# Custom camera position, focal point, and up vector
-savemo(
-    "water.fchk",
-    ["HOMO"],
-    iso=0.05,
-    camera_pos=[10, 10, 10],
-    camera_focal=[0, 0, 0],
-    camera_up=[0, 1, 0],
-    transparent_background=True
-)
+PyMoVis supports three levels of camera control.
+
+### 1. Manual camera settings
+
+Use `camera_pos`, `camera_focal`, and `camera_up` directly:
+
+```bash
+pymovis test.fchk HOMO \
+  -cp 10 10 10 \
+  -cf 0 0 0 \
+  -cu 0 1 0
 ```
 
-#### Loading and Manipulating Molecular Data
-```python
-from pymovis import load_inp
+### 2. Automatic axis-based camera
 
-# Load molecular data
-mol_data = load_inp("molecule.fchk")
+Use `--camera_axis` to place the camera so the molecule fits in the frame.
+The current renderer defaults are used for this calculation:
+- window size: `1024 x 768`
+- aspect ratio: `4:3`
+- vertical field of view: `30 deg`
 
-# Access molecular properties
-print(f"Atomic numbers: {mol_data.atomnos}")
-print(f"Coordinates shape: {mol_data.coords.shape}")
-print(f"Basis name: {mol_data.basis_name}")
-
-# Evaluate orbital on custom grid
-mol_data.evaluate_mo_on_grid(
-    "HOMO",
-    padding=3.0,
-    grid_setting="shape",
-    grid_shape=[150, 150, 150]
-)
+```bash
+pymovis test.fchk HOMO --camera_axis X
 ```
 
-#### Using Camera Utilities
-```python
-from pymovis import infer_camera_from_coords
-import numpy as np
+This option looks at the molecule from the negative side of the selected axis and uses the corresponding screen orientation:
+- `X` view: right is `+Y`, up is `+Z`
+- `Y` view: right is `+X`, up is `+Z`
+- `Z` view: right is `+X`, up is `+Y`
 
-# Automatically infer camera position based on molecular geometry
-coords = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-camera_pos, focal, up = infer_camera_from_coords(coords)
+### 3. Atom-index based camera control
+
+You can define the camera center and axes from atom indices. Indices are 0-based.
+
+#### Camera center
+
+Use `--camera_center_atoms`.
+
+- One atom index: the camera center is that atom position
+- Two or more atom indices: the camera center is the centroid of those atoms
+
+Example:
+
+```bash
+pymovis test.fchk HOMO --camera_center_atoms 0
+pymovis test.fchk HOMO --camera_center_atoms 0 1 2
 ```
 
-### Command Line Options
+#### Camera axis and up direction
 
+Use `--camera_axis_atoms` for the camera view axis and `--camera_up_atoms` for the screen up direction.
+
+- Two atom indices: the axis is the line through those atoms
+- Three or more atom indices: the axis is the normal vector of the best-fit plane through those atoms
+
+Example:
+
+```bash
+pymovis test.fchk HOMO \
+  --camera_center_atoms 0 1 2 \
+  --camera_axis_atoms 0 1 \
+  --camera_up_atoms 0 1 3
 ```
-Usage: movis input_file [mo_indices] [options]
+
+### Camera precedence
+
+The current behavior is:
+
+- If `--camera_axis_atoms` and `--camera_up_atoms` are provided, those atom-based axes are used
+- Otherwise, if `--camera_axis` is provided, the axis-based automatic camera is used
+- If `--camera_focal` is provided, it becomes the camera center used by the automatic camera calculation
+- If `--camera_up` is provided, it overrides the final up vector
+- If none of the automatic options are provided, manual `camera_pos`, `camera_focal`, and `camera_up` are used as-is
+
+## CLI Options
+
+```text
+Usage: pymovis input_file [mo ...] [options]
 
 Positional arguments:
   input_file              Gaussian fchk or cube file to visualize
-  mo                      MO indices (optional, multiple allowed)
-                         Specify by index (0, 1, ...) or keyword (HOMO, LUMO, HOMO-1, etc.)
+  mo                      MO indices to visualize
+                          Use integer indices starting from 0 or labels such as HOMO/LUMO
 
-Optional arguments:
-  -o, --out              Output file names (one per MO)
-  -i, --iso              Isosurface value (default: 0.05)
-  -b, --basis            Basis set name (e.g., 6-31G(d,p))
-  -t, --transparent      Transparent background (default: False)
-  -cp, --camera_pos      Camera position (X Y Z)
-  -cf, --camera_focal    Focal point (X Y Z)
-  -cu, --camera_up       Up vector (X Y Z)
+Options:
+  -o, --out               Output file names
+  -i, --iso               Isosurface value
+  -b, --basis             Basis set name for manual specification
+  -t, --transparent       Transparent background flag
+  -cp, --camera_pos       Manual camera position
+  -cf, --camera_focal     Manual camera focal point
+  -cu, --camera_up        Manual camera up vector
+  -ca, --camera_axis      Automatic camera axis: X / Y / Z
+  --camera_center_atoms   Atom indices used to define the camera center
+  --camera_axis_atoms     Atom indices used to define the camera view axis
+  --camera_up_atoms       Atom indices used to define the camera up axis
 ```
 
 ## Supported File Formats
 
 | Format | Extension | Description |
-|--------|-----------|-------------|
-| Gaussian Formatted Checkpoint | `.fchk` | Standard Gaussian output format |
-| Cube File | `.cube` | Electron density or orbital cube file |
-| PySCF Checkpoint | `.chk` | PySCF checkpoint file with SCF results |
+| --- | --- | --- |
+| Gaussian Formatted Checkpoint | `.fchk` | Gaussian MO and geometry data |
+| Cube File | `.cube` | Cube grid data |
+| PySCF checkpoint | `.chk` | PySCF SCF checkpoint |
 
-## API Reference
+## Python API
 
-### Main Functions
+### `savemo`
 
-#### `main(inp_file, mo_index, out_name=None, iso=0.03, camera_pos=None, camera_focal=None, camera_up=None, transparent_background=True)`
+```python
+savemo(
+    inp_file,
+    mo_index,
+    out_name=None,
+    iso=0.03,
+    camera_pos=None,
+    camera_focal=None,
+    camera_up=None,
+    camera_axis=None,
+    camera_center_atoms=None,
+    camera_axis_atoms=None,
+    camera_up_atoms=None,
+    transparent_background=True,
+)
+```
 
-Main function to visualize molecular orbitals.
+- `inp_file`: input file path
+- `mo_index`: list of MO indices or labels
+- `out_name`: output file names
+- `iso`: isosurface value
+- `camera_axis`: automatic axis-based view (`X`, `Y`, `Z`)
+- `camera_center_atoms`: atom indices for the camera center
+- `camera_axis_atoms`: atom indices for the view axis
+- `camera_up_atoms`: atom indices for the up axis
 
-**Parameters:**
-- `inp_file` (str): Path to input file (fchk, cube, or chk)
-- `mo_index` (list): List of MO indices or keywords
-- `out_name` (list, optional): Output file names
-- `iso` (float): Isosurface value (default: 0.03)
-- `camera_pos` (list, optional): Camera position [X, Y, Z]
-- `camera_focal` (list, optional): Focal point [X, Y, Z]
-- `camera_up` (list, optional): Up vector [X, Y, Z]
-- `transparent_background` (bool): Use transparent background
+### `load_inp`
 
-#### `load_inp(inp_file)`
+```python
+from pymovis import load_inp
+mol = load_inp("test.fchk")
+```
 
-Load and parse molecular data from file.
+Returns a `MoleculeData` object with parsed geometry, basis, and MO data.
 
-**Parameters:**
-- `inp_file` (str): Path to input file
+## Camera Utilities
 
-**Returns:**
-- `MoleculeData`: Object containing molecular information
+If you want to use the camera logic directly, the package exposes helper functions such as:
 
-### Data Classes
-
-#### `MoleculeData`
-
-Dataclass containing molecular information.
-
-**Attributes:**
-- `file_type` (str): Type of input file
-- `atoms` (list): Atom symbols and coordinates
-- `atomnos` (ndarray): Atomic numbers
-- `coords` (ndarray): Atomic coordinates
-- `coords_unit` (str): Coordinate unit ('Bohr' or 'Angstrom')
-- `mo_coeff` (ndarray): MO coefficients in AO basis
-- `basis` (dict): Basis set information
-- `cart` (bool): Cartesian (True) or spherical (False) basis functions
+```python
+from pymovis import (
+    infer_camera_from_coords,
+    infer_axis_camera_fit_from_coords,
+    infer_atom_axis_camera_fit_from_coords,
+)
+```
 
 ## Configuration
 
-### Settings
+Default rendering and parser settings are defined in [pymovis/settings.py](pymovis/settings.py).
 
-Edit visualization parameters in `pymovis/settings.py`:
+Important values include:
 
-```python
-# Grid settings
-GRID_SETTING = "shape"      # "size" or "shape"
-GRID_SHAPE = [100, 100, 100]
-GRID_SIZE = [0.3333, 0.3333, 0.3333]
+- `PADDING`
+- `GRID_SETTING`
+- `GRID_SHAPE`
+- `IMAGE_QUALITY`
+- `BACKGROUND_COLOR`
+- `PARSER_ARGS`
 
-# Visualization
-ORBITAL_OPACITY = 1.0
-ORBITAL_COLORS = {"pos": "blue", "neg": "red"}
-IMAGE_QUALITY = 4
+## Example Workflows
 
-# Atom rendering
-ELEMENT_DATA = {...}        # CPK colors and radii
-BOND_RADIUS = 0.15
-```
-
-## Examples
-
-### Example 1: Basic Water Molecule Visualization
+### Visualize the HOMO from a file
 
 ```bash
-# Download example file (if available)
-pymovis water.fchk HOMO LUMO -o homo.png lumo.png
+pymovis water.fchk HOMO
 ```
 
-### Example 2: Batch Processing
+### Visualize HOMO and LUMO with automatic axis view
 
-```python
-from pathlib import Path
-from pymovis import savemo
-
-# Process all fchk files in a directory
-for fchk_file in Path(".").glob("*.fchk"):
-    print(f"Processing {fchk_file}...")
-    savemo(str(fchk_file), ["HOMO", "LUMO"])
+```bash
+pymovis water.fchk HOMO LUMO --camera_axis Z
 ```
 
-## Acknowledgments
+### Visualize with atom-defined camera center and axes
 
-- Built with [PyVista](https://docs.pyvista.org/) for 3D visualization
-- Uses [PySCF](https://pyscf.org/) for quantum chemistry calculations
-- Inspired by molecular visualization tools in the quantum chemistry community
+```bash
+pymovis water.fchk HOMO \
+  --camera_center_atoms 0 1 2 \
+  --camera_axis_atoms 0 1 \
+  --camera_up_atoms 0 1 3
+```
 
+### Save transparent output
 
-## References
+```bash
+pymovis water.fchk HOMO --transparent True
+```
 
-- [Gaussian09/16 User's Reference](https://gaussian.com/)
-- [PySCF Documentation](https://pyscf.org/)
-- [PyVista Documentation](https://docs.pyvista.org/)
+## Development
 
-**Last Updated**: May 2026
-**Version**: 0.1.0
+Run the package in editable mode and use the CLI directly:
+
+```bash
+pip install -e .
+pymovis test.fchk HOMO
+```
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
