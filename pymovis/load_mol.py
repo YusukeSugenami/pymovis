@@ -15,6 +15,8 @@ class MoleculeData:
     basis: list | None = None
     basis_name: str | None = None
     cart: bool = False
+    mixed_shells: bool = False
+    ao_shell_types: list[int] | None = None
     mo_coeff: np.ndarray | None = None
     origin: np.ndarray | None = None
     grid_vecs: np.ndarray | None = None
@@ -39,7 +41,7 @@ class MoleculeData:
 
         return
 
-    def build_mol(self) -> gto.Mole:
+    def build_mol(self, cart: bool | None = None) -> gto.Mole:
 
         mol = gto.Mole()
         mol.unit = self.coords_unit
@@ -61,7 +63,7 @@ class MoleculeData:
         else:
             mol.basis = self.basis
 
-        mol.cart = self.cart
+        mol.cart = self.cart if cart is None else cart
         mol.build()
 
         return mol
@@ -113,6 +115,115 @@ class MoleculeData:
 
             raise ValueError(f"invalid format {mo_index} for mo_index")
 
+    def _evaluate_ao_on_points(self, grid_points: np.ndarray) -> np.ndarray:
+
+        if self.mo_coeff is None:
+            raise ValueError("mo_coeff is required to evaluate AO values")
+
+        if self.mixed_shells:
+            if self.ao_shell_types is None:
+                raise ValueError("ao_shell_types is required for mixed-shell AO evaluation")
+
+            mol_cart = self.build_mol(cart=True)
+            mol_sph = self.build_mol(cart=False)
+            basis_cart = mol_cart.eval_gto("GTOval_cart", grid_points)
+            basis_sph = mol_sph.eval_gto("GTOval_sph", grid_points)
+
+            blocks = []
+            ic = 0
+            isph = 0
+            for shell_type in self.ao_shell_types:
+                l = abs(shell_type)
+                ncart = (l + 1) * (l + 2) // 2
+                nsph = 2 * l + 1
+                cart_block = basis_cart[:, ic : ic + ncart]
+                sph_block = basis_sph[:, isph : isph + nsph]
+
+                # Keep the AO representation defined in fchk for each shell.
+                if shell_type > 1:
+                    blocks.append(cart_block)
+                else:
+                    blocks.append(sph_block)
+
+                ic += ncart
+                isph += nsph
+
+            basis_vals = np.hstack(blocks)
+        else:
+            mol = self.build_mol()
+            basis_vals = mol.eval_gto("GTOval", grid_points)
+
+        if basis_vals.shape[1] != self.mo_coeff.shape[0]:
+            raise ValueError(
+                f"AO size mismatch: evaluated {basis_vals.shape[1]} AOs, but mo_coeff has {self.mo_coeff.shape[0]} rows"
+            )
+
+        return basis_vals
+
+    def check_mo_identity_on_grid(
+        self,
+        mo_indices: list[int | str] | None = None,
+        padding: float = 2.0,
+        grid_setting: str = "size",
+        grid_size: list[float] = [0.3333, 0.3333, 0.3333],
+        grid_shape: list[int] = [100, 100, 100],
+        tol: float = 1e-2,
+    ) -> tuple[bool, float, np.ndarray]:
+        """
+        Check MO orthonormality on a real-space grid with uniform volume weights.
+
+        The check is based on Psi^T W Psi ~= I, where W = dV * I for a regular grid.
+        Due to finite box size and grid resolution, this is only an approximate test.
+        """
+
+        if self.file_type == "cube":
+            raise ValueError("grid identity check is only available when MO coefficients are present")
+        if self.coords is None or self.mo_coeff is None:
+            raise ValueError("not enough information to evaluate MO identity on grid")
+
+        self.convert_A2B()
+
+        min_xyz = self.coords.min(axis=0) - padding
+        max_xyz = self.coords.max(axis=0) + padding
+
+        if grid_setting == "size":
+            dx, dy, dz = grid_size
+            grid_x = np.arange(min_xyz[0], max_xyz[0], dx)
+            grid_y = np.arange(min_xyz[1], max_xyz[1], dy)
+            grid_z = np.arange(min_xyz[2], max_xyz[2], dz)
+            nx = len(grid_x)
+            ny = len(grid_y)
+            nz = len(grid_z)
+
+        elif grid_setting == "shape":
+            nx, ny, nz = grid_shape
+            grid_x = np.linspace(min_xyz[0], max_xyz[0], nx, retstep=False)
+            grid_y = np.linspace(min_xyz[1], max_xyz[1], ny, retstep=False)
+            grid_z = np.linspace(min_xyz[2], max_xyz[2], nz, retstep=False)
+            dx = grid_x[1] - grid_x[0]
+            dy = grid_y[1] - grid_y[0]
+            dz = grid_z[1] - grid_z[0]
+
+        else:
+            raise ValueError("not supported")
+
+        grid = np.array(np.meshgrid(grid_x, grid_y, grid_z, indexing="ij"))
+        grid_points = grid.reshape(3, -1).T
+        basis_vals = self._evaluate_ao_on_points(grid_points)
+
+        if mo_indices is None:
+            mo_cols = np.arange(self.mo_coeff.shape[1], dtype=int)
+        else:
+            mo_cols = np.array([self.parse_orbitalindex(i) for i in mo_indices], dtype=int)
+
+        psi_vals = basis_vals @ self.mo_coeff[:, mo_cols]
+        dV = abs(dx * dy * dz)
+        gram = psi_vals.T @ psi_vals * dV
+
+        I = np.eye(len(mo_cols))
+        err = np.linalg.norm(gram - I) / len(mo_cols)
+        return bool(err < tol), float(err), gram
+
     def evaluate_mo_on_grid(
         self,
         mo_index : int | str,
@@ -131,7 +242,8 @@ class MoleculeData:
         if mo_index < 0:
             raise ValueError("mo index is invalid")
 
-        self.check_mo_identity()
+        if not self.mixed_shells:
+            self.check_mo_identity()
         self.convert_A2B()
 
         min_xyz = self.coords.min(axis=0) - padding
@@ -163,8 +275,7 @@ class MoleculeData:
         grid = np.array(np.meshgrid(grid_x, grid_y, grid_z, indexing="ij"))
         grid_points = grid.reshape(3, -1).T  # (N,3)
 
-        mol = self.build_mol()
-        basis_vals = mol.eval_gto("GTOval", grid_points)  # shape = (N, nbas)
+        basis_vals = self._evaluate_ao_on_points(grid_points)
         mo = basis_vals @ self.mo_coeff[:, mo_index]
 
         self.origin = min_xyz

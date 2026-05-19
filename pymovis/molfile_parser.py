@@ -33,6 +33,14 @@ def read_fchk_array(lines : list[str], key : str, dtype=float) -> np.ndarray:
 
     raise ValueError(f"{key} not found")
 
+
+def _num_cart_ao(l: int) -> int:
+    return (l + 1) * (l + 2) // 2
+
+
+def _num_sph_ao(l: int) -> int:
+    return 2 * l + 1
+
 shell_ao_map = {
      0 : [(0, [0])],
     -1 : [(0, [0]), (1, [0, 1, 2])], # SP shell, only S part is considered here, P part is handled separately
@@ -155,7 +163,11 @@ def load_fchk(inp_file : str) -> dict:
     has_cartesian = any(x > 1 for x in shell_types)
     has_spherical = any(x < -1 for x in shell_types)
     if has_cartesian and has_spherical:
-        raise RuntimeError("Mixed Cartesian/spherical shells detected")
+        print("Warning: Mixed Cartesian and spherical shells detected in fchk file.")
+        mixed_shells = True
+        #raise RuntimeError("Mixed Cartesian/spherical shells detected")
+    else:
+        mixed_shells = False
     cart = has_cartesian
 
 
@@ -166,7 +178,8 @@ def load_fchk(inp_file : str) -> dict:
     prim_ptr = 0
     current_ao = 0
     primitive_data = {}
-    ao_data = {}    
+    ao_data = {}
+    shell_data = {}
     for ish, stype in enumerate(shell_types):
         nprim = nprim_per_shell[ish]
         atom_idx = shell_to_atom[ish] - 1 # 0 start index for python
@@ -175,6 +188,7 @@ def load_fchk(inp_file : str) -> dict:
         coeffs = contraction_coeffs[prim_ptr : prim_ptr + nprim]
         exps_coeffs = list(zip(exps, coeffs))
 
+        exps_pcoeffs = None
         if p_con_coeffs is not None:
             pcoeffs = p_con_coeffs[prim_ptr : prim_ptr + nprim]
             exps_pcoeffs = list(zip(exps, pcoeffs))
@@ -185,21 +199,27 @@ def load_fchk(inp_file : str) -> dict:
 
         # store primitive data for pyscf basis construction
         primitive_data.setdefault(atom_symbol, [])
+        shell_data.setdefault(atom_symbol, [])
         if stype == -1:  # SP shell
+            if exps_pcoeffs is None:
+                raise ValueError("SP shell requires P(S=P) contraction coefficients")
             # S shell
             s_block : list = [0]
             s_block.extend(exps_coeffs)
             primitive_data[atom_symbol].append(s_block)
+            shell_data[atom_symbol].append(0)
 
             # P shell
             p_block : list = [1]
             p_block.extend(exps_pcoeffs)
             primitive_data[atom_symbol].append(p_block)
+            shell_data[atom_symbol].append(1)
 
         else: # normal shells
             block = [abs(stype)]
             block.extend(exps_coeffs)
             primitive_data[atom_symbol].append(block)
+            shell_data[atom_symbol].append(stype)
 
         # store AO index for MO coefficient reordering and scaling
         ao_data.setdefault(atom_symbol, [])
@@ -210,14 +230,31 @@ def load_fchk(inp_file : str) -> dict:
 
     for atom_symbol in primitive_data:
         primitive_data[atom_symbol].sort(key=lambda x: x[0])
+        shell_data[atom_symbol].sort(key=lambda x: abs(x))
 
     ao_ordering = []
     ao_scaling = []
+    ao_shell_types = []
     for atom_symbol in ao_data:
         ao_data[atom_symbol].sort(key=lambda x: abs(x[0])) # sort shells by absolute angular momentum (keep S, P before D, etc.)
         for shell_type, ao_indices in ao_data[atom_symbol]:
             ao_ordering.extend(ao_indices)
             ao_scaling.extend(ao_scaling_factors[shell_type])
+            ao_shell_types.append(shell_type)
+
+    # Validate shell metadata consistency for mixed-shell AO assembly.
+    if mixed_shells:
+        n_ao_from_shell_meta = 0
+        for shell_type in ao_shell_types:
+            l = abs(shell_type)
+            if shell_type > 1:
+                n_ao_from_shell_meta += _num_cart_ao(l)
+            else:
+                n_ao_from_shell_meta += _num_sph_ao(l)
+        if n_ao_from_shell_meta != current_ao:
+            raise ValueError(
+                f"AO count mismatch in shell metadata: expected {current_ao}, got {n_ao_from_shell_meta}"
+            )
     
     # ----------------------------------
     # parse mo coefficients
@@ -243,7 +280,9 @@ def load_fchk(inp_file : str) -> dict:
         'coords_unit' : coords_unit,
         'mo_coeff' : C_new,
         'basis' : primitive_data,
-        'cart' : cart
+        'cart' : cart,
+        'mixed_shells' : mixed_shells,
+        'ao_shell_types' : ao_shell_types
     }
 
     return fchk_info

@@ -7,7 +7,7 @@ name = "pymovis"
 version = "0.1.0"
 description = "Molecular Orbital Visualization System - A Python package for visualizing molecular orbitals from quantum chemistry calculations"
 readme = "README.md"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 requires-python = ">=3.12"
 authors = [
     {name = "Yusuke Sugenami", email = "yusuke.sugenami@akane.waseda.jp"}
@@ -45,9 +45,6 @@ pymovis = "pymovis.pymovis:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pymovis"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"pymovis/test_data" = "pymovis/test_data"
 
 [tool.black]
 line-length = 100
