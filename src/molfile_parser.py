@@ -6,23 +6,24 @@ from pyscf import lib
 # fchk parser
 ###############################################################################
 
-def read_fchk_array(lines, key, dtype=float):
+def read_fchk_array(lines : list[str], key : str, dtype=float) -> np.ndarray:
     """
-    fchk array reader
+    Fchk array reader.
+    Search for the line containing the key, read the number of elements, 
+    and then read the values until the expected number of elements is reached.
 
-    Parameters
-    ----------
-    lines : list[str]
-    key : str
-    dtype : type
+    Parameters:
+        lines : list[str]
+        key : str
+        dtype : type
 
-    Returns: ndarray
+    Returns: 
+        ndarray
     """
 
     for i, line in enumerate(lines):
         if key in line:
-            # number of elements
-            n = int(line.split()[-1])
+            n = int(line.split()[-1]) # number of elements in the array
             vals = []
             j = i + 1
             while len(vals) < n:
@@ -32,8 +33,83 @@ def read_fchk_array(lines, key, dtype=float):
 
     raise ValueError(f"{key} not found")
 
+shell_ao_map = {
+     0 : [(0, [0])],
+    -1 : [(0, [0]), (1, [0, 1, 2])], # SP shell, only S part is considered here, P part is handled separately
+     1 : [(1, [0, 1, 2])],
+    -2 : [(-2, [4, 2, 0, 1, 3])], #spherical d
+     2 : [(2, [0, 3, 4, 1, 5, 2])], # cartecian d
+    -3 : [(-3, [6, 4, 2, 0, 1, 3, 5])], # spherical f
+     3 : [(3, [0, 4, 5, 3, 9, 6, 1, 8, 7, 2])], # cartesian f
+    -4 : [(-4, [8, 6, 4, 2, 0, 1, 3, 5, 7])], # spherical g
+     4 : [(4, [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0])] # cartesian g
+}
 
-def load_fchk(inp_file : str):
+d_const = np.sqrt(15 / (4 * np.pi))
+f_const = np.sqrt(105 / (4 * np.pi))
+g_const = np.sqrt(945 / (4 * np.pi))
+ao_scaling_factors = {
+    0 : [1.0], # s
+    1 : [1.0, 1.0, 1.0], # p
+    -2 : [1.0, 1.0, 1.0, 1.0, 1.0], # spherical d
+    2 : [
+        d_const / np.sqrt(3), #dxx
+        d_const,              #dxy
+        d_const,              #dxz
+        d_const / np.sqrt(3), #dyy
+        d_const,              #dyz
+        d_const / np.sqrt(3)  #dzz
+    ], # cartesian d
+    -3 : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], # spherical f
+    3 : [
+        f_const / np.sqrt(15), #fxxx
+        f_const / np.sqrt(3),  #fxxy
+        f_const / np.sqrt(3),  #fxxz
+        f_const / np.sqrt(3),  #fxyy
+        f_const,               #fxyz
+        f_const / np.sqrt(3),  #fxzz
+        f_const / np.sqrt(15), #fyyy
+        f_const / np.sqrt(3),  #fyyz
+        f_const / np.sqrt(3),  #fyzz
+        f_const / np.sqrt(15)  #fzzz
+    ], # cartesian f
+    -4 : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], # spherical g
+    4 : [
+        g_const / np.sqrt(105), #gxxxx
+        g_const / np.sqrt(15),  #gxxxy
+        g_const / np.sqrt(15),  #gxxxz
+        g_const / np.sqrt(9),  #gxxyy
+        g_const / np.sqrt(3),   #gxxyz
+        g_const / np.sqrt(9),  #gxxzz
+        g_const / np.sqrt(15), #gxyyy
+        g_const / np.sqrt(3),  #gxyyz
+        g_const / np.sqrt(3),  #gxyzz
+        g_const / np.sqrt(15), #gxzzz
+        g_const / np.sqrt(105), #gyyyy
+        g_const / np.sqrt(15),  #gyyyz
+        g_const / np.sqrt(9),  #gyyzz
+        g_const / np.sqrt(15), #gyzzz
+        g_const / np.sqrt(105)  #gzzzz
+    ], # cartesian g
+}
+
+def load_fchk(inp_file : str) -> dict:
+    """
+    Load fchk file and extract necessary information for visualization.
+    
+    Parameters:
+        inp_file : str
+    Returns:
+        dict with keys:
+            'file_type' : 'fchk'
+            'atoms' : list of [symbol, (x, y, z)]
+            'atomnos' : array of atomic numbers
+            'coords' : array of atomic coordinates
+            'coords_unit' : 'Bohr' or 'Angstrom'
+            'mo_coeff' : array of MO coefficients in AO basis, reordered and scaled for visualization
+            'basis' : dict of basis information for each atom, compatible with PySCF format
+            'cart' : bool, whether the basis functions are Cartesian or spherical
+    """
 
     with open(inp_file) as f:
         lines = f.readlines()
@@ -43,9 +119,8 @@ def load_fchk(inp_file : str):
     # ----------------------------------
 
     atomnos = read_fchk_array(lines, "Atomic numbers", int) # array of atomic numbers starts from 1
-    coords = read_fchk_array(lines, "Current cartesian coordinates").reshape(-1, 3) # bohr
+    coords = read_fchk_array(lines, "Current cartesian coordinates").reshape(-1, 3) # coordinates in Bohr
     coords_unit = 'Bohr'
-
     atoms = []
     for i, (z, r) in enumerate(zip(atomnos, coords)):
         symbol = periodictable.elements[z]
@@ -67,10 +142,15 @@ def load_fchk(inp_file : str):
         p_con_coeffs = read_fchk_array(lines, "P(S=P) Contraction coefficients")
     except:
         p_con_coeffs = None
-        
-    if p_con_coeffs is not None and len(p_con_coeffs) != len(primitive_exponents):
-        raise ValueError("Length of P(S=P) Contraction coefficients does not match number of primitives")
     
+    # check consistency of basis information
+    if not (len(shell_types) == len(nprim_per_shell) == len(shell_to_atom)):
+        raise ValueError("Inconsistent shell information in fchk file")
+    if not (len(primitive_exponents) == len(contraction_coeffs) == sum(nprim_per_shell)):
+        raise ValueError("Inconsistent primitive information in fchk file")
+    if any(stype == -1 for stype in shell_types) and p_con_coeffs is None:
+        raise ValueError("SP shells detected but P(S=P) contraction coefficients are missing in fchk file")
+
     # check orbital type: spherical / cartesian
     has_cartesian = any(x > 1 for x in shell_types)
     has_spherical = any(x < -1 for x in shell_types)
@@ -85,74 +165,59 @@ def load_fchk(inp_file : str):
 
     prim_ptr = 0
     current_ao = 0
-    pyscf_basis = {}
-    fchk_basis = {}
-    
-    shell_ao_map = {
-         0 : [0],
-         1 : [0, 1, 2],
-        -2 : [4, 2, 0, 1, 3], #shperical d
-         2 : [0, 3, 4, 1, 5, 2], # cartecian d
-        -3 : [6, 4, 2, 0, 1, 3, 5], # spherical f
-         3 : [0, 4, 5, 3, 9, 6, 1, 8, 7, 2], # cartesian f
-        -4 : [8, 6, 4, 2, 0, 1, 3, 5, 7], # spherical g
-         4 : [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] # cartesian g
-    }
-
+    primitive_data = {}
+    ao_data = {}    
     for ish, stype in enumerate(shell_types):
         nprim = nprim_per_shell[ish]
         atom_idx = shell_to_atom[ish] - 1 # 0 start index for python
         atom_symbol = atoms[atom_idx][0]
         exps = primitive_exponents[prim_ptr : prim_ptr + nprim]
         coeffs = contraction_coeffs[prim_ptr : prim_ptr + nprim]
+        exps_coeffs = list(zip(exps, coeffs))
 
         if p_con_coeffs is not None:
             pcoeffs = p_con_coeffs[prim_ptr : prim_ptr + nprim]
+            exps_pcoeffs = list(zip(exps, pcoeffs))
         else:
             pcoeffs = None
-
+        
         prim_ptr += nprim
-        pyscf_basis.setdefault(atom_symbol, [])
-        fchk_basis.setdefault(atom_symbol, [])
 
-        # SP shell
-        if stype == -1:
-            if pcoeffs is None:
-                raise ValueError("P(S=P) Contraction coefficients are required for SP shells")
+        # store primitive data for pyscf basis construction
+        primitive_data.setdefault(atom_symbol, [])
+        if stype == -1:  # SP shell
             # S shell
-            s_block: list = [0]
-            for e, cs in zip(exps, coeffs):
-                s_block.append([float(e), float(cs)])
-            pyscf_basis[atom_symbol].append(s_block)
-
-            fchk_basis[atom_symbol].append((0, [current_ao]))
-            current_ao += 1
+            s_block : list = [0]
+            s_block.extend(exps_coeffs)
+            primitive_data[atom_symbol].append(s_block)
 
             # P shell
-            p_block: list = [1]
-            for e, cp in zip(exps, pcoeffs):
-                p_block.append([float(e), float(cp)])
-            pyscf_basis[atom_symbol].append(p_block)
+            p_block : list = [1]
+            p_block.extend(exps_pcoeffs)
+            primitive_data[atom_symbol].append(p_block)
 
-            fchk_basis[atom_symbol].append((1, list(range(current_ao, current_ao + 3))))
-            current_ao += 3
+        else: # normal shells
+            block = [abs(stype)]
+            block.extend(exps_coeffs)
+            primitive_data[atom_symbol].append(block)
 
-        # normal shells
-        else:
-            l = abs(stype)
-            block = [l]
-            for i, (e, c) in enumerate(zip(exps, coeffs)):
-                block.append([float(e), float(c)]) 
-            pyscf_basis[atom_symbol].append(block)
-            
-            ao_map = shell_ao_map[stype]
-            ao_map = [m + current_ao for m in ao_map]
-            fchk_basis[atom_symbol].append((l, ao_map))
-            current_ao += len(ao_map)
+        # store AO index for MO coefficient reordering and scaling
+        ao_data.setdefault(atom_symbol, [])
+        for shell_type, ao_map in shell_ao_map[stype]:
+            ao_indices = [current_ao + i for i in ao_map]
+            ao_data[atom_symbol].append((shell_type, ao_indices))
+            current_ao += len(ao_map)            
 
-    for atom_symbol in pyscf_basis:
-        pyscf_basis[atom_symbol].sort(key=lambda x: x[0])
+    for atom_symbol in primitive_data:
+        primitive_data[atom_symbol].sort(key=lambda x: x[0])
 
+    ao_ordering = []
+    ao_scaling = []
+    for atom_symbol in ao_data:
+        ao_data[atom_symbol].sort(key=lambda x: abs(x[0])) # sort shells by absolute angular momentum (keep S, P before D, etc.)
+        for shell_type, ao_indices in ao_data[atom_symbol]:
+            ao_ordering.extend(ao_indices)
+            ao_scaling.extend(ao_scaling_factors[shell_type])
     
     # ----------------------------------
     # parse mo coefficients
@@ -163,67 +228,13 @@ def load_fchk(inp_file : str):
     nmo = coeffs.size // nao
     C = coeffs.reshape(nmo, nao).T # [ao, mo]
 
-    ao_ordering = []
-    ao_scaling = []
-    for atom_symbol in fchk_basis:
-        # sort shells by absolute angular momentum (keep S, P before D, etc.)
-        fchk_basis[atom_symbol].sort(key=lambda x: abs(x[0]))
-
-        for shell in fchk_basis[atom_symbol]:
-            ang = shell[0]
-            ao_indices = shell[1]
-            ao_ordering.extend(ao_indices)
-            if ang == 2 and len(ao_indices) == 6:  # cartesian d
-                const = np.sqrt(15 / (4 * np.pi))
-                ao_scaling.extend([
-                    const / np.sqrt(3), # dxx
-                    const,              # dxy
-                    const,              # dxz
-                    const / np.sqrt(3),  # dyy
-                    const,              # dyz
-                    const / np.sqrt(3)  # dzz
-                ])
-            elif ang == 3 and len(ao_indices) == 10: # cartesian f
-                const = np.sqrt(105 / (4 * np.pi))
-                ao_scaling.extend([
-                    const / np.sqrt(15), #fxxx
-                    const / np.sqrt(3),  #fxxy
-                    const / np.sqrt(3),  #fxxz
-                    const / np.sqrt(3),  #fxyy
-                    const,               #fxyz
-                    const / np.sqrt(3),  #fxzz
-                    const / np.sqrt(15), #fyyy
-                    const / np.sqrt(3),  #fyyz
-                    const / np.sqrt(3),  #fyzz
-                    const / np.sqrt(15)  #fzzz
-                ])
-            elif ang == 4 and len(ao_indices) == 15: # cartesian g
-                const = np.sqrt(945 / (4 * np.pi))
-                ao_scaling.extend([
-                    const / np.sqrt(105), #gxxxx
-                    const / np.sqrt(15),  #gxxxy
-                    const / np.sqrt(15),  #gxxxz
-                    const / np.sqrt(9),  #gxxyy
-                    const / np.sqrt(3),   #gxxyz
-                    const / np.sqrt(9),  #gxxzz
-                    const / np.sqrt(15), #gxyyy
-                    const / np.sqrt(3),  #gxyyz
-                    const / np.sqrt(3),  #gxyzz
-                    const / np.sqrt(15), #gxzzz
-                    const / np.sqrt(105), #gyyyy
-                    const / np.sqrt(15),  #gyyyz
-                    const / np.sqrt(9),  #gyyzz
-                    const / np.sqrt(15), #gyzzz
-                    const / np.sqrt(105), #gzzzz
-                ])
-            else:
-                ao_scaling.extend([1.0 for _ in ao_indices])
-
-    # reorderign MO
+    # reorderign and scaling of MO coefficients for visualization
     C_new = np.zeros_like(C)
     for i, (ao, aoc) in enumerate(zip(ao_ordering, ao_scaling)):
         C_new[i] = C[ao] * aoc
 
+
+    # return all parsed information in a dict for later use
     fchk_info = {
         'file_type' : 'fchk',
         'atoms' : atoms,
@@ -231,14 +242,18 @@ def load_fchk(inp_file : str):
         'coords' : coords,
         'coords_unit' : coords_unit,
         'mo_coeff' : C_new,
-        'basis' : pyscf_basis,
+        'basis' : primitive_data,
         'cart' : cart
     }
 
     return fchk_info
 
 
-def load_cube(inp_file):
+###############################################################################
+# cube parser
+###############################################################################
+
+def load_cube(inp_file: str) -> dict:
 
     with open(inp_file) as f:
         lines = f.readlines()
@@ -283,7 +298,12 @@ def load_cube(inp_file):
 
     return cube_info
 
-def load_pyscfchk(inp_file):
+
+###############################################################################
+# pyscf chkfile parser
+###############################################################################
+
+def load_pyscfchk(inp_file: str) -> dict:
 
     mo_coeff = lib.chkfile.load(inp_file, 'scf/mo_coeff')
     mol = lib.chkfile.load_mol(inp_file)

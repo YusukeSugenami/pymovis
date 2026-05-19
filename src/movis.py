@@ -26,9 +26,16 @@ pv.global_theme.allow_empty_mesh = True
 # Visualize with PyVista and save image files
 ##############################################
 
-
 def pv_molstruct(plotter: pv.Plotter, atomnos: np.ndarray, coords: np.ndarray) -> None:
-    """Add atoms and bonds to a PyVista plotter."""
+    """
+    Add atoms and bonds to a PyVista plotter.
+    Parameters:
+        plotter: PyVista Plotter object to which the molecule will be added.
+        atomnos: Array of atomic numbers for each atom in the molecule.
+        coords: Array of atomic coordinates (shape: [num_atoms, 3]).
+    Returns:
+        None
+    """
 
     atomnos = np.asarray(atomnos)
     coords = np.asarray(coords, dtype=float)
@@ -73,7 +80,15 @@ def build_volume_grid(
     origin: np.ndarray,
     grid_vecs: np.ndarray,
 ) -> pv.StructuredGrid:
-    """Build a structured grid for MO isosurface rendering."""
+    """
+    Build a structured grid for MO isosurface rendering.
+    Parameters:
+        mo_cube: 3D array of MO values on the grid (shape: [nx, ny, nz]).
+        origin: 3D coordinates of the grid origin (shape: [3]).
+        grid_vecs: 3x3 array of grid vectors defining the grid spacing and orientation (shape: [3, 3]).
+    Returns:
+        A PyVista StructuredGrid object containing the grid points and MO values.
+    """
 
     nx, ny, nz = mo_cube.shape
     origin = np.asarray(origin, dtype=float)
@@ -105,7 +120,23 @@ def save_mo_plot(
     camera_up: list[float] | None = None,
     transparent_background: bool = True,
 ) -> None:
-    """Render a MO isosurface and save it to an image file."""
+    """
+    Render a MO isosurface and save it to an image file.
+    Parameters:
+        atomnos: Array of atomic numbers for each atom in the molecule.
+        coords: Array of atomic coordinates (shape: [num_atoms, 3]).
+        mo_cube: 3D array of MO values on the grid (shape: [nx, ny, nz]).
+        origin: 3D coordinates of the grid origin (shape: [3]).
+        grid_vecs: 3x3 array of grid vectors defining the grid spacing and orientation (shape: [3, 3]).
+        out_name: Output file name for the saved image.
+        iso: Isosurface value for rendering the MO (default: 0.05).
+        camera_pos: Optional list of 3 floats specifying the camera position (default: None).
+        camera_focal: Optional list of 3 floats specifying the camera focal point (default: None).
+        camera_up: Optional list of 3 floats specifying the camera up vector (default: None).
+        transparent_background: Whether to use a transparent background for the saved image (default: True).
+    Returns:
+        None
+    """
 
     plotter: Any = pv.Plotter(off_screen=True)
     plotter.set_background(BACKGROUND_COLOR)
@@ -169,19 +200,36 @@ def main(
     camera_up: list[float] | None = None,
     transparent_background: bool = True,
 ) -> None:
-    """Load molecular data, evaluate selected orbitals, and save plots."""
+    """
+    Load molecular data, evaluate selected orbitals, and save plots.
+    Parameters:
+        inp_file: Path to the input file (Gaussian fchk or cube) containing molecular data and MO information.
+        mo_index: List of MO indices to visualize. Can be integers (starting from 0) or strings (e.g., "HOMO", "LUMO+2").
+        out_name: Optional list of output file names for the saved images. If None, names will be generated automatically based on the input file name and MO index.
+        iso: Isosurface value for rendering the MO (default: 0.03).
+        camera_pos: Optional list of 3 floats specifying the camera position (default: None).
+        camera_focal: Optional list of 3 floats specifying the camera focal point (default: None).
+        camera_up: Optional list of 3 floats specifying the camera up vector (default: None).
+        transparent_background: Whether to use a transparent background for the saved images (default: True).
+    Returns:
+        None
+    """
 
+    # Determine output file names based on input file name and MO index
     basename, ext = os.path.basename(inp_file).rsplit(".", 1)
-    if out_name is None:
+    # if output name is not provided, generate it based on the input file name and MO index
+    if out_name is None: 
         if mo_index[0] == -1:
-            out_name = [f"{basename}.{DEFAULT_OUT_SUFFIX}"]
+            out_name = [f"{basename}.{DEFAULT_OUT_SUFFIX}"] 
         else:
-            out_name = [f"{basename}_{mo_idx}.{DEFAULT_OUT_SUFFIX}" for mo_idx in mo_index]
+            out_name = [f"{basename}_{mo_idx}.{DEFAULT_OUT_SUFFIX}" for mo_idx in mo_index] 
     else:
         if len(mo_index) != len(out_name):
             print("warning: length of mo_index and output_name do not match. set output name automatically")
             out_name = [f"{basename}_{mo_idx}.{DEFAULT_OUT_SUFFIX}" for mo_idx in mo_index]
-        else:
+        else: 
+            # if output name is provided and has the same length as mo_index, use the provided names. 
+            # If any name does not end with an image suffix, append the default suffix.
             out_name = [f"{name}.{DEFAULT_OUT_SUFFIX}" if not name.endswith(IMAGE_SUFFIXES) else name for name in out_name]
     
     moldata = load_inp(inp_file)

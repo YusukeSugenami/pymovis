@@ -21,7 +21,7 @@ class MoleculeData:
     mo_cube: np.ndarray | None = None
     mo_identity: bool = False
 
-    def convert_A2B(self):
+    def convert_A2B(self) -> None:
 
         if self.coords is None or self.coords_unit == "Bohr":
             return
@@ -30,7 +30,7 @@ class MoleculeData:
 
         return
 
-    def convert_B2A(self):
+    def convert_B2A(self) -> None:
 
         if self.coords is None or self.coords_unit == "Angstrom":
             return
@@ -39,7 +39,7 @@ class MoleculeData:
 
         return
 
-    def build_mol(self):
+    def build_mol(self) -> gto.Mole:
 
         mol = gto.Mole()
         mol.unit = self.coords_unit
@@ -66,7 +66,7 @@ class MoleculeData:
 
         return mol
 
-    def check_mo_identity(self):
+    def check_mo_identity(self) -> None:
 
         if self.mo_identity:
             return
@@ -86,7 +86,7 @@ class MoleculeData:
             self.mo_identity = True
             return
 
-    def parse_orbitalindex(self, mo_index):
+    def parse_orbitalindex(self, mo_index : int | str) -> int:
 
         try:
             mo_index = int(mo_index)
@@ -115,12 +115,12 @@ class MoleculeData:
 
     def evaluate_mo_on_grid(
         self,
-        mo_index,
-        padding=2.0,
-        grid_setting="size",
-        grid_size=[0.3333, 0.3333, 0.3333],
-        grid_shape=[100, 100, 100],
-    ):
+        mo_index : int | str,
+        padding : float = 2.0,
+        grid_setting : str = "size",
+        grid_size : list[float] = [0.3333, 0.3333, 0.3333],
+        grid_shape : list[int] = [100, 100, 100],
+    ) -> None:
 
         if self.file_type == "cube":
             return
@@ -174,7 +174,7 @@ class MoleculeData:
         return
 
 
-def load_inp(inp_file):
+def load_inp(inp_file : str) -> MoleculeData:
 
     _, ext = os.path.basename(inp_file).rsplit(".", 1)
     if ext.lower() == "cube":
@@ -184,7 +184,9 @@ def load_inp(inp_file):
     elif ext.lower() == "fchk":
         fchk_info = load_fchk(inp_file)
         data = MoleculeData(**fchk_info)
-
+    elif ext.lower() == 'chk':
+        pyscf_info = load_pyscfchk(inp_file)
+        data = MoleculeData(**pyscf_info)
     else:
         raise ValueError("not supported yet")
 
