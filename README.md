@@ -1,6 +1,6 @@
-# PyMoVis
+# PyMovis
 
-PyMoVis is a Python package for visualizing molecular orbitals from quantum chemistry calculations. It reads Gaussian formatted checkpoint files, cube files, and PySCF checkpoint files, then renders 3D orbital isosurfaces with PyVista.
+PyMovis is a Python package for visualizing molecular orbitals from quantum chemistry calculations. It reads Gaussian formatted checkpoint files, cube files, and PySCF checkpoint files, then renders 3D orbital isosurfaces with PyVista.
 
 ## Features
 
