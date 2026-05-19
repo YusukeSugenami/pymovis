@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 import numpy as np
 from pyscf import gto
-from molfile_parser import load_cube, load_fchk, load_pyscfchk
+from .molfile_parser import load_cube, load_fchk, load_pyscfchk
 
 @dataclass
 class MoleculeData:
@@ -95,7 +95,7 @@ class MoleculeData:
             if self.atomnos is None:
                 raise ValueError("atomnos is required to parse mo index in string format")
             homo_index = int(sum(self.atomnos) / 2 - 1)
-            mo_index = mo_index.strip().upper()
+            mo_index = str(mo_index).strip().upper()
 
             if mo_index.startswith("HOMO"):
                 if mo_index == "HOMO":
@@ -158,7 +158,7 @@ class MoleculeData:
         else:
             raise ValueError("not supported")
 
-        grid_shape = (nx, ny, nz)
+        grid_shape = [nx, ny, nz]
         grid_vecs = np.array([[dx, 0.0, 0.0], [0.0, dy, 0.0], [0.0, 0.0, dz]])
         grid = np.array(np.meshgrid(grid_x, grid_y, grid_z, indexing="ij"))
         grid_points = grid.reshape(3, -1).T  # (N,3)

@@ -6,8 +6,8 @@ import periodictable
 import pyvista as pv
 import argparse
 
-from settings import *
-from load_mol import load_inp
+from .settings import *
+from .load_mol import load_inp
 
 
 ##############################################
@@ -26,7 +26,7 @@ pv.global_theme.allow_empty_mesh = True
 # Visualize with PyVista and save image files
 ##############################################
 
-def pv_molstruct(plotter: pv.Plotter, atomnos: np.ndarray, coords: np.ndarray) -> None:
+def build_molstruct(plotter: pv.Plotter, atomnos: np.ndarray, coords: np.ndarray) -> None:
     """
     Add atoms and bonds to a PyVista plotter.
     Parameters:
@@ -108,17 +108,17 @@ def build_volume_grid(
 
 
 def save_mo_plot(
-    atomnos: np.ndarray,
-    coords: np.ndarray,
-    mo_cube: np.ndarray,
-    origin: np.ndarray,
-    grid_vecs: np.ndarray,
-    out_name: str,
-    iso: float = 0.05,
-    camera_pos: list[float] | None = None,
-    camera_focal: list[float] | None = None,
-    camera_up: list[float] | None = None,
-    transparent_background: bool = True,
+    atomnos : np.ndarray,
+    coords : np.ndarray,
+    mo_cube : np.ndarray,
+    origin : np.ndarray,
+    grid_vecs : np.ndarray,
+    out_name : str,
+    iso : float = 0.05,
+    camera_pos : list[float] | None = None,
+    camera_focal : list[float] | None = None,
+    camera_up : list[float] | None = None,
+    transparent_background : bool = True,
 ) -> None:
     """
     Render a MO isosurface and save it to an image file.
@@ -138,14 +138,14 @@ def save_mo_plot(
         None
     """
 
-    plotter: Any = pv.Plotter(off_screen=True)
+    plotter : Any = pv.Plotter(off_screen=True)
     plotter.set_background(BACKGROUND_COLOR)
     grid = build_volume_grid(mo_cube, origin, grid_vecs)
     positive_iso = cast(pv.PolyData, grid.contour([iso], scalars="mo"))
     negative_iso = cast(pv.PolyData, grid.contour([-iso], scalars="mo"))
     plotter.add_mesh(positive_iso, color=ORBITAL_COLORS["pos"], opacity=ORBITAL_OPACITY)
     plotter.add_mesh(negative_iso, color=ORBITAL_COLORS["neg"], opacity=ORBITAL_OPACITY)
-    pv_molstruct(plotter, atomnos, coords)
+    build_molstruct(plotter, atomnos, coords)
 
     if camera_pos is None and camera_focal is None and camera_up is None:
         plotter.enable_anti_aliasing(ANTI_ALIASING)
@@ -190,7 +190,7 @@ def save_mo_plot(
 ##############################################
 
 
-def main(
+def savefig(
     inp_file: str,
     mo_index: list[int | str],
     out_name: list[str] | None = None,
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     for arg_config in PARSER_ARGS:
         parser.add_argument(*arg_config["args"], **arg_config["kwargs"])
     args = parser.parse_args()
-    main(
+    savefig(
         args.input_file,
         args.mo,
         out_name=args.out,
