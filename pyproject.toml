@@ -41,7 +41,7 @@ dev = [
 Repository = "https://github.com/YusukeSugenami/pymovis"
 
 [project.scripts]
-pymovis = "pymovis.pymovis:main"
+pymovis = "pymovis.pymovis:savemo"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pymovis"]

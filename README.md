@@ -23,7 +23,7 @@ pip install pymovis
 ### From Source
 ```bash
 git clone https://github.com/YusukeSugenami/pymovis.git
-cd movis
+cd pymovis
 pip install -e .
 ```
 
@@ -38,9 +38,9 @@ pip install -e ".[dev]"
 
 Visualize multiple orbitals:
 ```python
-from pymovis import savefig
+from pymovis import savemo
 
-savefig("molecule.fchk", ["HOMO", "LUMO", "LUMO+1"], iso=0.05)
+savemo("molecule.fchk", ["HOMO", "LUMO", "LUMO+1"], iso=0.05)
 ```
 
 ### Command Line
@@ -55,18 +55,18 @@ pymovis molecule.fchk HOMO -o homo.png -i 0.05 --transparent True
 
 #### Basic MO Visualization
 ```python
-from movis import main
+from pymovis import savemo
 
 # Visualize HOMO and LUMO with custom isosurface value
-main("water.fchk", ["HOMO", "LUMO"], iso=0.03)
+savemo("water.fchk", ["HOMO", "LUMO"], iso=0.03)
 ```
 
 #### Advanced Rendering with Camera Control
 ```python
-from movis import main
+from pymovis import savemo
 
 # Custom camera position, focal point, and up vector
-main(
+savemo(
     "water.fchk",
     ["HOMO"],
     iso=0.05,
@@ -79,7 +79,7 @@ main(
 
 #### Loading and Manipulating Molecular Data
 ```python
-from movis import load_inp
+from pymovis import load_inp
 
 # Load molecular data
 mol_data = load_inp("molecule.fchk")
@@ -100,7 +100,7 @@ mol_data.evaluate_mo_on_grid(
 
 #### Using Camera Utilities
 ```python
-from movis import infer_camera_from_coords
+from pymovis import infer_camera_from_coords
 import numpy as np
 
 # Automatically infer camera position based on molecular geometry
@@ -184,7 +184,7 @@ Dataclass containing molecular information.
 
 ### Settings
 
-Edit visualization parameters in `movis/settings.py`:
+Edit visualization parameters in `pymovis/settings.py`:
 
 ```python
 # Grid settings
@@ -208,36 +208,20 @@ BOND_RADIUS = 0.15
 
 ```bash
 # Download example file (if available)
-movis water.fchk HOMO LUMO -o homo.png lumo.png
+pymovis water.fchk HOMO LUMO -o homo.png lumo.png
 ```
 
 ### Example 2: Batch Processing
 
 ```python
 from pathlib import Path
-from movis import main
+from pymovis import savemo
 
 # Process all fchk files in a directory
 for fchk_file in Path(".").glob("*.fchk"):
     print(f"Processing {fchk_file}...")
-    main(str(fchk_file), ["HOMO", "LUMO"])
+    savemo(str(fchk_file), ["HOMO", "LUMO"])
 ```
-
-## Testing
-
-Run the test suite:
-
-```bash
-pytest
-```
-
-With coverage:
-
-```bash
-pytest --cov=movis
-```
-
-
 
 ## Acknowledgments
 

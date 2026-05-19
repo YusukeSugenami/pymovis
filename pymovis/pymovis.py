@@ -190,7 +190,7 @@ def save_mo_plot(
 ##############################################
 
 
-def savefig(
+def savemo(
     inp_file: str,
     mo_index: list[int | str],
     out_name: list[str] | None = None,
@@ -216,7 +216,7 @@ def savefig(
     """
 
     # Determine output file names based on input file name and MO index
-    basename, ext = os.path.basename(inp_file).rsplit(".", 1)
+    basename, _ = os.path.basename(inp_file).rsplit(".", 1)
     # if output name is not provided, generate it based on the input file name and MO index
     if out_name is None: 
         if mo_index[0] == -1:
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     for arg_config in PARSER_ARGS:
         parser.add_argument(*arg_config["args"], **arg_config["kwargs"])
     args = parser.parse_args()
-    savefig(
+    savemo(
         args.input_file,
         args.mo,
         out_name=args.out,

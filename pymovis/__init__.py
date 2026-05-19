@@ -1,5 +1,5 @@
 """
-MOVIS: Molecular Orbital Visualization System
+PyMoVis: Molecular Orbital Visualization System
 
 A Python package for visualizing molecular orbitals from quantum chemistry calculations.
 Supports Gaussian fchk and cube file formats.
@@ -11,21 +11,21 @@ Features:
     - Customize camera positions and visualization parameters
 
 Example:
-    >>> from movis import savefig
-    >>> savefig("water.fchk", ["HOMO", "LUMO"], iso=0.05)
+    >>> from pymovis import savemo
+    >>> savemo("water.fchk", ["HOMO", "LUMO"], iso=0.05)
 
 """
 
-from pymovis import savefig, save_mo_plot, build_volume_grid, build_molstruct
+from pymovis import savemo, save_mo_plot, build_volume_grid, build_molstruct
 from load_mol import load_inp, MoleculeData
 from camera_utils import infer_camera_from_coords
 from settings import ELEMENT_DATA, ORBITAL_COLORS
 
 __version__ = "0.1.0"
-__author__ = "MOVIS Contributors"
+__author__ = "PyMoVis Contributors"
 
 __all__ = [
-    "savefig",
+    "savemo",
     "save_mo_plot",
     "build_volume_grid",
     "build_molstruct",
