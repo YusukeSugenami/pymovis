@@ -16,16 +16,17 @@ Example:
 
 """
 
-from pymovis import savemo, save_mo_plot, build_volume_grid, build_molstruct
-from load_mol import load_inp, MoleculeData
-from camera_utils import infer_camera_from_coords
-from settings import ELEMENT_DATA, ORBITAL_COLORS
+from .pymovis import cli, savemo, save_mo_plot, build_volume_grid, build_molstruct
+from .load_mol import load_inp, MoleculeData
+from .camera_utils import infer_camera_from_coords
+from .settings import ELEMENT_DATA, ORBITAL_COLORS
 
 __version__ = "0.1.0"
 __author__ = "PyMoVis Contributors"
 
 __all__ = [
     "savemo",
+    "cli",
     "save_mo_plot",
     "build_volume_grid",
     "build_molstruct",

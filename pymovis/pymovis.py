@@ -6,8 +6,8 @@ import periodictable
 import pyvista as pv
 import argparse
 
-from settings import *
-from load_mol import load_inp
+from .settings import *
+from .load_mol import load_inp
 
 
 ##############################################
@@ -262,8 +262,9 @@ def savemo(
             camera_up=camera_up,
             transparent_background=transparent_background,
         )
-        
-if __name__ == "__main__":
+
+
+def cli() -> None:
     parser = argparse.ArgumentParser(
         description="MO picture generator from Gaussian fchk or cube file."
     )
@@ -280,3 +281,6 @@ if __name__ == "__main__":
         camera_up=args.camera_up,
         transparent_background=args.transparent,
     )
+
+if __name__ == "__main__":
+    cli()
