@@ -1,9 +1,8 @@
-# MOVIS: Molecular Orbital Visualization System
+# PyMoVis: Molecular Orbital Visualization System
 
 [![Python Version](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-MOVIS is a Python package for visualizing molecular orbitals (MOs) from quantum chemistry calculations. It reads molecular data from Gaussian output files and renders high-quality 3D isosurface visualizations using PyVista.
+PyMoVis is a Python package for visualizing molecular orbitals (MOs) from quantum chemistry calculations. It reads molecular data from Gaussian output files and renders high-quality 3D isosurface visualizations using PyVista.
 
 ## Features
 
@@ -18,12 +17,12 @@ MOVIS is a Python package for visualizing molecular orbitals (MOs) from quantum 
 
 ### From PyPI
 ```bash
-pip install movis
+pip install pymovis
 ```
 
 ### From Source
 ```bash
-git clone https://github.com/username/movis.git
+git clone https://github.com/YusukeSugenami/pymovis.git
 cd movis
 pip install -e .
 ```
@@ -37,29 +36,17 @@ pip install -e ".[dev]"
 
 ### Basic Usage
 
-Visualize the HOMO orbital:
-```python
-from movis import main
-
-main("molecule.fchk", ["HOMO"])
-```
-
 Visualize multiple orbitals:
 ```python
-from movis import main
+from pymovis import savefig
 
-main("molecule.fchk", ["HOMO", "LUMO", "LUMO+1"], iso=0.05)
+savefig("molecule.fchk", ["HOMO", "LUMO", "LUMO+1"], iso=0.05)
 ```
 
 ### Command Line
 
 ```bash
-movis molecule.fchk HOMO LUMO
-```
-
-With options:
-```bash
-movis molecule.fchk HOMO -o homo.png -i 0.05 --transparent True
+pymovis molecule.fchk HOMO -o homo.png -i 0.05 --transparent True
 ```
 
 ## Usage Examples
@@ -250,40 +237,7 @@ With coverage:
 pytest --cov=movis
 ```
 
-## Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Setup
-
-```bash
-git clone https://github.com/username/movis.git
-cd movis
-pip install -e ".[dev]"
-```
-
-## Citation
-
-If you use MOVIS in your research, please cite:
-
-```bibtex
-@software{movis2024,
-  title={MOVIS: Molecular Orbital Visualization System},
-  author={Contributors},
-  year={2024},
-  url={https://github.com/username/movis}
-}
-```
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
@@ -291,28 +245,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Uses [PySCF](https://pyscf.org/) for quantum chemistry calculations
 - Inspired by molecular visualization tools in the quantum chemistry community
 
-## Troubleshooting
-
-### Common Issues
-
-**Q: "Module not found" error**
-```python
-# Ensure movis is properly installed
-pip install -e .
-```
-
-**Q: Basis set not found in fchk file**
-```python
-# Specify basis explicitly
-main("file.fchk", ["HOMO"], basis="6-31G(d,p)")
-```
-
-**Q: Low image quality**
-```python
-# Adjust grid resolution and image quality in settings.py
-GRID_SHAPE = [150, 150, 150]  # Higher resolution
-IMAGE_QUALITY = 8              # Higher scaling factor
-```
 
 ## References
 
@@ -320,15 +252,5 @@ IMAGE_QUALITY = 8              # Higher scaling factor
 - [PySCF Documentation](https://pyscf.org/)
 - [PyVista Documentation](https://docs.pyvista.org/)
 
-## Support
-
-For issues, questions, or suggestions, please:
-
-- Open an [Issue](https://github.com/username/movis/issues) on GitHub
-- Check the [Documentation](https://movis.readthedocs.io)
-- Contact the maintainers
-
----
-
-**Last Updated**: May 2024
+**Last Updated**: May 2026
 **Version**: 0.1.0

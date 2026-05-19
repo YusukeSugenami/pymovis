@@ -38,10 +38,10 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/username/movis"
+Repository = "https://github.com/YusukeSugenami/pymovis"
 
 [project.scripts]
-pymovis = "pymovis.movis:main"
+pymovis = "pymovis.pymovis:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pymovis"]

@@ -6,8 +6,8 @@ import periodictable
 import pyvista as pv
 import argparse
 
-from .settings import *
-from .load_mol import load_inp
+from settings import *
+from load_mol import load_inp
 
 
 ##############################################
