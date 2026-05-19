@@ -13,24 +13,12 @@ PyMovis is a Python package for visualizing molecular orbitals from quantum chem
 
 ## Installation
 
-### From PyPI
-
-```bash
-pip install pymovis
-```
-
 ### From source
 
 ```bash
 git clone https://github.com/YusukeSugenami/pymovis.git
 cd pymovis
 pip install -e .
-```
-
-### Development install
-
-```bash
-pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -264,15 +252,3 @@ pymovis water.fchk HOMO \
 pymovis water.fchk HOMO --transparent True
 ```
 
-## Development
-
-Run the package in editable mode and use the CLI directly:
-
-```bash
-pip install -e .
-pymovis test.fchk HOMO
-```
-
-## License
-
-MIT License. See [LICENSE](LICENSE).
