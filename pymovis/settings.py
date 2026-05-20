@@ -172,10 +172,11 @@ PARSER_ARGS = [
         "args": ["-ca", "--camera_axis"],
         "kwargs": {
             "default": None,
-            "choices": ["X", "Y", "Z", "x", "y", "z"],
+            "choices": ["X", "Y", "Z", "x", "y", "z", "-X", "-Y", "-Z", "-x", "-y", "-z"],
             "help": (
                 "Auto camera axis. "
-                "If set, camera position is computed to fit the molecule along the selected axis."
+                "If set, camera position is computed to fit the molecule along the selected axis. "
+                "Use '-' prefix (e.g., '-X') to invert the axis direction."
             ),
         },
     },

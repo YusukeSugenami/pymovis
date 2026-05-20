@@ -245,6 +245,7 @@ def infer_axis_camera_fit_from_coords(
         Atomic coordinates with shape (n_atoms, 3).
     axis : str
         View axis. One of "X", "Y", "Z" (case-insensitive).
+        Use '-' prefix (e.g., "-X") to invert the axis direction.
     padding : float, optional
         Extra margin added to half-size in right/up/view directions.
     window_size : tuple[int, int], optional
@@ -264,13 +265,20 @@ def infer_axis_camera_fit_from_coords(
         (camera_pos, camera_focal, camera_up)
     """
 
-    axis_key = str(axis).strip().lower()
+    axis_str = str(axis).strip()
+    invert = axis_str.startswith("-")
+    axis_key = axis_str.lstrip("-").lower()
     if axis_key not in AXIS_VIEW_CONFIG:
-        raise ValueError("axis must be one of 'X', 'Y', or 'Z'")
+        raise ValueError("axis must be one of 'X', 'Y', 'Z' (optionally with '-' prefix)")
     basis = AXIS_VIEW_CONFIG[axis_key]
+    
+    view_axis = np.asarray(basis["view"], dtype=float)
+    if invert:
+        view_axis = -view_axis
+    
     return _fit_camera_from_basis(
         coords,
-        basis["view"],
+        view_axis,
         basis["up"],
         padding=padding,
         window_size=window_size,

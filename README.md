@@ -82,6 +82,7 @@ This option looks at the molecule from the negative side of the selected axis an
 - `X` view: right is `+Y`, up is `+Z`
 - `Y` view: right is `+X`, up is `+Z`
 - `Z` view: right is `+X`, up is `+Y`
+You can invert the axis direction with prefix '-' (e.g. -X)
 
 ### 3. Atom-index based camera control
 
@@ -175,7 +176,7 @@ Options:
   -cp, --camera_pos       Manual camera position
   -cf, --camera_focal     Manual camera focal point
   -cu, --camera_up        Manual camera up vector
-  -ca, --camera_axis      Automatic camera axis: X / Y / Z
+  -ca, --camera_axis      Automatic camera axis: X / Y / Z. Use '-' prefix (e.g. -X) to invert the axis direction.
   --camera_focal_atoms    Atom indices used to define the camera focal point
   --camera_axis_atoms     Atom indices used to define the camera view axis
   --camera_up_atoms       Atom indices used to define the camera up axis
