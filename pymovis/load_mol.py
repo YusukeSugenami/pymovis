@@ -116,11 +116,12 @@ class MoleculeData:
             elif mo_index.startswith("LUMO"):
                 if mo_index == "LUMO":
                     index = homo_index + 1
-                m = re.match(r"LUMO([+-]\d+)", mo_index)
-                if m:
-                    index = homo_index + 1 + int(m.group(1))
                 else:
-                    index = None
+                    m = re.match(r"LUMO([+-]\d+)", mo_index)
+                    if m:
+                        index = homo_index + 1 + int(m.group(1))
+                    else:
+                        index = None
             else:
                 index = None
             if index is None:
