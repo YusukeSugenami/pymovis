@@ -82,6 +82,7 @@ This option looks at the molecule from the negative side of the selected axis an
 - `X` view: right is `+Y`, up is `+Z`
 - `Y` view: right is `+X`, up is `+Z`
 - `Z` view: right is `+X`, up is `+Y`
+
 You can invert the axis direction with prefix '-' (e.g. -X)
 
 ### 3. Atom-index based camera control
