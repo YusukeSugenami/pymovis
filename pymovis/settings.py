@@ -219,6 +219,40 @@ PARSER_ARGS = [
         },
     },
     {
+        "args": ["--camera_axis_reference"],
+        "kwargs": {
+            "nargs": "+",
+            "type": float,
+            "default": None,
+            "metavar": "VALUE",
+            "help": (
+                "Reference vector to fix the sign of the camera view axis. "
+                "Can be specified as: "
+                "(1) Two atom indices [idx1 idx2] -> vector = coords[idx2] - coords[idx1], or "
+                "(2) Three coordinates [X Y Z] -> direct vector. "
+                "Used with --camera_axis_atoms; axis direction is flipped "
+                "if its dot product with the reference is negative."
+            ),
+        },
+    },
+    {
+        "args": ["--camera_up_reference"],
+        "kwargs": {
+            "nargs": "+",
+            "type": float,
+            "default": None,
+            "metavar": "VALUE",
+            "help": (
+                "Reference vector to fix the sign of the camera up axis. "
+                "Can be specified as: "
+                "(1) Two atom indices [idx1 idx2] -> vector = coords[idx2] - coords[idx1], or "
+                "(2) Three coordinates [X Y Z] -> direct vector. "
+                "Used with --camera_up_atoms; axis direction is flipped "
+                "if its dot product with the reference is negative."
+            ),
+        },
+    },
+    {
         "args": ["-womo", "--without_mo"],
         "kwargs": {
             "action": "store_true",

@@ -12,6 +12,7 @@ from .camera_utils import (
     infer_atom_axis_camera_fit_from_coords,
     infer_axis_camera_fit_from_coords,
     infer_center_from_atom_indices,
+    parse_reference_vector,
 )
 
 
@@ -218,6 +219,8 @@ def savemo(
     camera_focal_atoms: list[int] | int | None = None,
     camera_axis_atoms: list[int] | int | None = None,
     camera_up_atoms: list[int] | int | None = None,
+    camera_axis_reference: list[float] | None = None,
+    camera_up_reference: list[float] | None = None,
     transparent_background: bool = True,
     without_mo: bool = False,
 ) -> None:
@@ -235,6 +238,8 @@ def savemo(
         camera_focal_atoms: Atom indices used for automatic camera focal point.
         camera_axis_atoms: Atom indices used for automatic camera view axis.
         camera_up_atoms: Atom indices used for automatic camera up axis.
+        camera_axis_reference: Optional reference vector to fix the sign of the camera view axis.
+        camera_up_reference: Optional reference vector to fix the sign of the camera up axis.
         transparent_background: Whether to use a transparent background for the saved images (default: True).
         without_mo: If True, only render the molecule structure without MO isosurface (default: False).
     Returns:
@@ -262,6 +267,10 @@ def savemo(
     if without_mo:
         moldata.mo_info = False
 
+    # Parse reference vectors (2 atoms -> vector, or 3 coords -> direct vector)
+    parsed_camera_axis_reference = parse_reference_vector(camera_axis_reference, moldata.coords)
+    parsed_camera_up_reference = parse_reference_vector(camera_up_reference, moldata.coords)
+
     resolved_camera_pos = camera_pos
     resolved_camera_focal = camera_focal
     resolved_camera_up = camera_up
@@ -280,6 +289,8 @@ def savemo(
             camera_up_atoms,
             padding=PADDING,
             center=resolved_camera_focal,
+            camera_axis_reference=parsed_camera_axis_reference,
+            camera_up_reference=parsed_camera_up_reference,
         )
     elif camera_axis is not None:
         resolved_camera_pos, resolved_camera_focal, resolved_camera_up = infer_axis_camera_fit_from_coords(
@@ -335,6 +346,8 @@ def cli() -> None:
         camera_focal_atoms=args.camera_focal_atoms,
         camera_axis_atoms=args.camera_axis_atoms,
         camera_up_atoms=args.camera_up_atoms,
+        camera_axis_reference=args.camera_axis_reference,
+        camera_up_reference=args.camera_up_reference,
         transparent_background=args.transparent,
         without_mo=args.without_mo
     )

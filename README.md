@@ -117,6 +117,36 @@ pymovis test.fchk HOMO \
   --camera_up_atoms 0 1 3
 ```
 
+#### Fixing axis sign with reference vectors
+
+When using three or more atoms to define an axis (via best-fit plane normal), the sign of the resulting axis is ambiguous. You can fix this using `--camera_axis_reference` and `--camera_up_reference`.
+
+Each reference option accepts:
+- **Two atom indices**: `[idx1 idx2]` → the reference vector is `coords[idx2] - coords[idx1]`
+- **Three floats**: `[X Y Z]` → the reference vector is given directly
+
+The axis is flipped if its dot product with the reference vector is negative.
+
+Example using atom indices:
+
+```bash
+pymovis test.fchk HOMO \
+  --camera_axis_atoms 0 1 2 \
+  --camera_up_atoms 3 4 5 \
+  --camera_axis_reference 0 1 \
+  --camera_up_reference 2 5
+```
+
+Example using direct coordinates:
+
+```bash
+pymovis test.fchk HOMO \
+  --camera_axis_atoms 0 1 2 \
+  --camera_up_atoms 3 4 5 \
+  --camera_axis_reference 0 0 1 \
+  --camera_up_reference 0 1 0
+```
+
 ### Camera precedence
 
 The current behavior is:
@@ -149,6 +179,8 @@ Options:
   --camera_focal_atoms    Atom indices used to define the camera focal point
   --camera_axis_atoms     Atom indices used to define the camera view axis
   --camera_up_atoms       Atom indices used to define the camera up axis
+  --camera_axis_reference Reference vector for camera view axis sign (2 atom indices or 3 coordinates)
+  --camera_up_reference   Reference vector for camera up axis sign (2 atom indices or 3 coordinates)
   -womo, --without_mo     Only render molecule structure without MO isosurface
 ```
 
@@ -177,6 +209,8 @@ savemo(
     camera_focal_atoms=None,
     camera_axis_atoms=None,
     camera_up_atoms=None,
+    camera_axis_reference=None,
+    camera_up_reference=None,
     transparent_background=True,
     without_mo=False,
 )
@@ -190,6 +224,8 @@ savemo(
 - `camera_focal_atoms`: atom indices for the camera focal point
 - `camera_axis_atoms`: atom indices for the view axis
 - `camera_up_atoms`: atom indices for the up axis
+- `camera_axis_reference`: reference vector for camera axis sign (2 atom indices or 3D coordinates)
+- `camera_up_reference`: reference vector for camera up axis sign (2 atom indices or 3D coordinates)
 - `transparent_background`: save transparent background picture if True
 - `without_mo`: save only molecular structure if True
 
