@@ -1,5 +1,5 @@
 """
-PyMoVis: Molecular Orbital Visualization System
+PyMovis: Molecular Orbital Visualization System
 
 A Python package for visualizing molecular orbitals from quantum chemistry calculations.
 Supports Gaussian fchk and cube file formats.
@@ -25,7 +25,7 @@ from .camera_utils import (
 from .settings import ELEMENT_DATA, ORBITAL_COLORS
 
 __version__ = "0.1.0"
-__author__ = "PyMoVis Contributors"
+__author__ = "PyMovis Contributors"
 
 __all__ = [
     "savemo",

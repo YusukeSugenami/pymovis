@@ -115,15 +115,16 @@ def build_volume_grid(
 def save_mo_plot(
     atomnos : np.ndarray,
     coords : np.ndarray,
-    mo_cube : np.ndarray,
-    origin : np.ndarray,
-    grid_vecs : np.ndarray,
+    mo_cube : np.ndarray | None,
+    origin : np.ndarray | None,
+    grid_vecs : np.ndarray | None,
     out_name : str,
     iso : float = 0.05,
-    camera_pos : list[float] | None = None,
-    camera_focal : list[float] | None = None,
-    camera_up : list[float] | None = None,
+    camera_pos : list[float] | np.ndarray | None = None,
+    camera_focal : list[float] |  np.ndarray | None = None,
+    camera_up : list[float] | np.ndarray | None = None,
     transparent_background : bool = True,
+    without_mo : bool = False
 ) -> None:
     """
     Render a MO isosurface and save it to an image file.
@@ -139,37 +140,45 @@ def save_mo_plot(
         camera_focal: Optional list of 3 floats specifying the camera focal point (default: None).
         camera_up: Optional list of 3 floats specifying the camera up vector (default: None).
         transparent_background: Whether to use a transparent background for the saved image (default: True).
+        without_mo: If True, only render the molecule structure without MO isosurface (default: False).
     Returns:
         None
     """
 
     plotter : Any = pv.Plotter(off_screen=True)
     plotter.set_background(BACKGROUND_COLOR)
-    grid = build_volume_grid(mo_cube, origin, grid_vecs)
-    positive_iso = cast(pv.PolyData, grid.contour([iso], scalars="mo"))
-    negative_iso = cast(pv.PolyData, grid.contour([-iso], scalars="mo"))
-    plotter.add_mesh(positive_iso, color=ORBITAL_COLORS["pos"], opacity=ORBITAL_OPACITY)
-    plotter.add_mesh(negative_iso, color=ORBITAL_COLORS["neg"], opacity=ORBITAL_OPACITY)
+    if not without_mo and mo_cube is not None and origin is not None and grid_vecs is not None:
+        grid = build_volume_grid(mo_cube, origin, grid_vecs)
+        positive_iso = cast(pv.PolyData, grid.contour([iso], scalars="mo"))
+        negative_iso = cast(pv.PolyData, grid.contour([-iso], scalars="mo"))
+        plotter.add_mesh(positive_iso, color=ORBITAL_COLORS["pos"], opacity=ORBITAL_OPACITY)
+        plotter.add_mesh(negative_iso, color=ORBITAL_COLORS["neg"], opacity=ORBITAL_OPACITY)
     build_molstruct(plotter, atomnos, coords)
 
     if camera_pos is None and camera_focal is None and camera_up is None:
         plotter.enable_anti_aliasing(ANTI_ALIASING)
         plotter.screenshot(
-            out_name, scale=IMAGE_QUALITY, transparent_background=transparent_background
+            out_name, 
+            scale=IMAGE_QUALITY, 
+            transparent_background=transparent_background
         )
-        print(f"Saved {out_name}\ncamera setting: {plotter.camera_position}")
+        print(f"Saved {out_name}")
 
     elif not camera_pos is None and not camera_focal is None and not camera_up is None:
         plotter.enable_anti_aliasing(ANTI_ALIASING)
         plotter.camera_position = [camera_pos, camera_focal, camera_up]
         plotter.screenshot(
-            out_name, scale=IMAGE_QUALITY, transparent_background=transparent_background
+            out_name, 
+            scale=IMAGE_QUALITY, 
+            transparent_background=transparent_background
         )
-        print(f"Saved {out_name}\ncamera setting: {plotter.camera_position}")
+        print(f"Saved {out_name}")
 
     else:
         plotter.screenshot(
-            out_name, scale=1, transparent_background=transparent_background
+            out_name, 
+            scale=1, 
+            transparent_background=transparent_background
         )
         pos, focus, up = plotter.camera_position
 
@@ -185,9 +194,11 @@ def save_mo_plot(
         plotter.enable_anti_aliasing(ANTI_ALIASING)
         plotter.camera_position = [pos, focus, up]
         plotter.screenshot(
-            out_name, scale=IMAGE_QUALITY, transparent_background=transparent_background
+            out_name, 
+            scale=IMAGE_QUALITY, 
+            transparent_background=transparent_background
         )
-        print(f"Saved {out_name}\ncamera setting: {plotter.camera_position}")
+        print(f"Saved {out_name}")
 
 
 ##############################################
@@ -204,10 +215,11 @@ def savemo(
     camera_focal: list[float] | None = None,
     camera_up: list[float] | None = None,
     camera_axis: str | None = None,
-    camera_center_atoms: list[int] | int | None = None,
+    camera_focal_atoms: list[int] | int | None = None,
     camera_axis_atoms: list[int] | int | None = None,
     camera_up_atoms: list[int] | int | None = None,
     transparent_background: bool = True,
+    without_mo: bool = False,
 ) -> None:
     """
     Load molecular data, evaluate selected orbitals, and save plots.
@@ -220,10 +232,11 @@ def savemo(
         camera_focal: Optional list of 3 floats specifying the camera focal point (default: None).
         camera_up: Optional list of 3 floats specifying the camera up vector (default: None).
         camera_axis: Optional axis name (X/Y/Z) for automatic camera placement.
-        camera_center_atoms: Atom indices used for automatic camera center.
+        camera_focal_atoms: Atom indices used for automatic camera focal point.
         camera_axis_atoms: Atom indices used for automatic camera view axis.
         camera_up_atoms: Atom indices used for automatic camera up axis.
         transparent_background: Whether to use a transparent background for the saved images (default: True).
+        without_mo: If True, only render the molecule structure without MO isosurface (default: False).
     Returns:
         None
     """
@@ -246,6 +259,38 @@ def savemo(
             out_name = [f"{name}.{DEFAULT_OUT_SUFFIX}" if not name.endswith(IMAGE_SUFFIXES) else name for name in out_name]
     
     moldata = load_inp(inp_file)
+    if without_mo:
+        moldata.mo_info = False
+
+    resolved_camera_pos = camera_pos
+    resolved_camera_focal = camera_focal
+    resolved_camera_up = camera_up
+
+    if camera_focal_atoms is not None and camera_focal is None:
+            resolved_camera_focal = infer_center_from_atom_indices(
+                moldata.coords,
+                camera_focal_atoms,
+            )
+    if camera_axis_atoms is not None or camera_up_atoms is not None:
+        if camera_axis_atoms is None or camera_up_atoms is None:
+            raise ValueError("camera_axis_atoms and camera_up_atoms must be specified together")
+        resolved_camera_pos, resolved_camera_focal, resolved_camera_up = infer_atom_axis_camera_fit_from_coords(
+            moldata.coords,
+            camera_axis_atoms,
+            camera_up_atoms,
+            padding=PADDING,
+            center=resolved_camera_focal,
+        )
+    elif camera_axis is not None:
+        resolved_camera_pos, resolved_camera_focal, resolved_camera_up = infer_axis_camera_fit_from_coords(
+            moldata.coords,
+            camera_axis,
+            padding=PADDING,
+            center=resolved_camera_focal,
+        )
+    if camera_up is not None:
+        resolved_camera_up = camera_up 
+    
     for mo_idx, image_name in zip(mo_index, out_name):
         moldata.evaluate_mo_on_grid(
             mo_idx,
@@ -254,51 +299,6 @@ def savemo(
             grid_size=GRID_SIZE,
             grid_shape=GRID_SHAPE
         )
-        if (
-            moldata.atomnos is None
-            or moldata.coords is None
-            or moldata.mo_cube is None
-            or moldata.origin is None
-            or moldata.grid_vecs is None
-        ):
-            raise ValueError("molecular grid data is incomplete")
-
-        resolved_camera_pos = camera_pos
-        resolved_camera_focal = camera_focal
-        resolved_camera_up = camera_up
-
-        if camera_center_atoms is not None and camera_focal is None:
-            resolved_camera_focal = infer_center_from_atom_indices(
-                moldata.coords,
-                camera_center_atoms,
-            )
-
-        if camera_axis_atoms is not None or camera_up_atoms is not None:
-            if camera_axis_atoms is None or camera_up_atoms is None:
-                raise ValueError(
-                    "camera_axis_atoms and camera_up_atoms must be specified together"
-                )
-            resolved_camera_pos, resolved_camera_focal, resolved_camera_up = (
-                infer_atom_axis_camera_fit_from_coords(
-                    moldata.coords,
-                    camera_axis_atoms,
-                    camera_up_atoms,
-                    padding=PADDING,
-                    center=resolved_camera_focal,
-                )
-            )
-        elif camera_axis is not None:
-            resolved_camera_pos, resolved_camera_focal, resolved_camera_up = (
-                infer_axis_camera_fit_from_coords(
-                    moldata.coords,
-                    camera_axis,
-                    padding=PADDING,
-                    center=resolved_camera_focal,
-                )
-            )
-
-        if camera_up is not None:
-            resolved_camera_up = camera_up
 
         save_mo_plot(
             moldata.atomnos,
@@ -312,6 +312,7 @@ def savemo(
             camera_focal=resolved_camera_focal,
             camera_up=resolved_camera_up,
             transparent_background=transparent_background,
+            without_mo=without_mo
         )
 
 
@@ -331,10 +332,11 @@ def cli() -> None:
         camera_focal=args.camera_focal,
         camera_up=args.camera_up,
         camera_axis=args.camera_axis,
-        camera_center_atoms=args.camera_center_atoms,
+        camera_focal_atoms=args.camera_focal_atoms,
         camera_axis_atoms=args.camera_axis_atoms,
         camera_up_atoms=args.camera_up_atoms,
         transparent_background=args.transparent,
+        without_mo=args.without_mo
     )
 
 if __name__ == "__main__":

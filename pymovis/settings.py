@@ -65,7 +65,7 @@ ORBITAL_OPACITY = 1.0
 BOND_RADIUS = 0.15
 BOND_DEFAULT_COLOR = "white"
 
-PADDING = 2.0
+PADDING = 5.0
 
 IMAGE_SUFFIXES = ("png", "jpeg", "jpg", "bmp", "tif", "tiff")
 DEFAULT_OUT_SUFFIX = "png"
@@ -180,14 +180,14 @@ PARSER_ARGS = [
         },
     },
     {
-        "args": ["--camera_center_atoms"],
+        "args": ["--camera_focal_atoms"],
         "kwargs": {
             "nargs": "+",
             "type": int,
             "default": None,
             "metavar": "ATOM",
             "help": (
-                "Atom indices (0-based) used to determine the camera center. "
+                "Atom indices (0-based) used to determine the camera focal point. "
                 "One atom uses that atom position; two or more use the centroid."
             ),
         },
@@ -218,4 +218,11 @@ PARSER_ARGS = [
             ),
         },
     },
+    {
+        "args": ["-womo", "--without_mo"],
+        "kwargs": {
+            "action": "store_true",
+            "help": "Only render molecule structure without MO isosurface",
+        },
+    }
 ]

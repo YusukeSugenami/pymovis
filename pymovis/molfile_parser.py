@@ -129,10 +129,10 @@ def load_fchk(inp_file : str) -> dict:
     atomnos = read_fchk_array(lines, "Atomic numbers", int) # array of atomic numbers starts from 1
     coords = read_fchk_array(lines, "Current cartesian coordinates").reshape(-1, 3) # coordinates in Bohr
     coords_unit = 'Bohr'
-    atoms = []
-    for i, (z, r) in enumerate(zip(atomnos, coords)):
+    atom_symbols = []
+    for i, z in enumerate(atomnos):
         symbol = periodictable.elements[z]
-        atoms.append([f'{symbol}{i}', r])
+        atom_symbols.append(f'{symbol}{i}')
 
     
     # ----------------------------------
@@ -168,7 +168,6 @@ def load_fchk(inp_file : str) -> dict:
         #raise RuntimeError("Mixed Cartesian/spherical shells detected")
     else:
         mixed_shells = False
-    cart = has_cartesian
 
 
     # ----------------------------------
@@ -183,7 +182,7 @@ def load_fchk(inp_file : str) -> dict:
     for ish, stype in enumerate(shell_types):
         nprim = nprim_per_shell[ish]
         atom_idx = shell_to_atom[ish] - 1 # 0 start index for python
-        atom_symbol = atoms[atom_idx][0]
+        atom_symbol = atom_symbols[atom_idx]
         exps = primitive_exponents[prim_ptr : prim_ptr + nprim]
         coeffs = contraction_coeffs[prim_ptr : prim_ptr + nprim]
         exps_coeffs = list(zip(exps, coeffs))
@@ -274,14 +273,13 @@ def load_fchk(inp_file : str) -> dict:
     # return all parsed information in a dict for later use
     fchk_info = {
         'file_type' : 'fchk',
-        'atoms' : atoms,
+        'atom_symbols' : atom_symbols,
         'atomnos' : atomnos,
         'coords' : coords,
         'coords_unit' : coords_unit,
         'mo_coeff' : C_new,
         'basis' : primitive_data,
-        'cart' : cart,
-        'mixed_shells' : mixed_shells,
+        'shell_type' : 'mixed' if mixed_shells else 'cart' if has_cartesian else 'sph',
         'ao_shell_types' : ao_shell_types
     }
 
@@ -349,13 +347,13 @@ def load_pyscfchk(inp_file: str) -> dict:
 
     pyscfchk_info = {
         'file_type' : 'pyscfchk',
-        'atoms' : mol._atom,
+        'atom_symbols' : [atom[0] for atom in mol._atom],
         'atomnos' : mol.atom_charges(),
         'coords' : mol.atom_coords(),
         'coords_unit' : 'Bohr',
         'mo_coeff' : mo_coeff,
         'basis' : mol.basis,
-        'cart' : mol.cart
+        'shell_type' : 'cart' if mol.cart else 'sph'
     }
     
     return pyscfchk_info

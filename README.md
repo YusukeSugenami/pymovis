@@ -89,7 +89,7 @@ You can define the camera center and axes from atom indices. Indices are 0-based
 
 #### Camera center
 
-Use `--camera_center_atoms`.
+Use `--camera_focal_atoms`.
 
 - One atom index: the camera center is that atom position
 - Two or more atom indices: the camera center is the centroid of those atoms
@@ -97,8 +97,8 @@ Use `--camera_center_atoms`.
 Example:
 
 ```bash
-pymovis test.fchk HOMO --camera_center_atoms 0
-pymovis test.fchk HOMO --camera_center_atoms 0 1 2
+pymovis test.fchk HOMO --camera_focal_atoms 0
+pymovis test.fchk HOMO --camera_focal_atoms 0 1 2
 ```
 
 #### Camera axis and up direction
@@ -112,7 +112,7 @@ Example:
 
 ```bash
 pymovis test.fchk HOMO \
-  --camera_center_atoms 0 1 2 \
+  --camera_focal_atoms 0 1 2 \
   --camera_axis_atoms 0 1 \
   --camera_up_atoms 0 1 3
 ```
@@ -146,9 +146,10 @@ Options:
   -cf, --camera_focal     Manual camera focal point
   -cu, --camera_up        Manual camera up vector
   -ca, --camera_axis      Automatic camera axis: X / Y / Z
-  --camera_center_atoms   Atom indices used to define the camera center
+  --camera_focal_atoms    Atom indices used to define the camera focal point
   --camera_axis_atoms     Atom indices used to define the camera view axis
   --camera_up_atoms       Atom indices used to define the camera up axis
+  -womo, --without_mo     Only render molecule structure without MO isosurface
 ```
 
 ## Supported File Formats
@@ -173,10 +174,11 @@ savemo(
     camera_focal=None,
     camera_up=None,
     camera_axis=None,
-    camera_center_atoms=None,
+    camera_focal_atoms=None,
     camera_axis_atoms=None,
     camera_up_atoms=None,
     transparent_background=True,
+    without_mo=False,
 )
 ```
 
@@ -185,9 +187,11 @@ savemo(
 - `out_name`: output file names
 - `iso`: isosurface value
 - `camera_axis`: automatic axis-based view (`X`, `Y`, `Z`)
-- `camera_center_atoms`: atom indices for the camera center
+- `camera_focal_atoms`: atom indices for the camera focal point
 - `camera_axis_atoms`: atom indices for the view axis
 - `camera_up_atoms`: atom indices for the up axis
+- `transparent_background`: save transparent background picture if True
+- `without_mo`: save only molecular structure if True
 
 ### `load_inp`
 
@@ -241,7 +245,7 @@ pymovis water.fchk HOMO LUMO --camera_axis Z
 
 ```bash
 pymovis water.fchk HOMO \
-  --camera_center_atoms 0 1 2 \
+  --camera_focal_atoms 0 1 2 \
   --camera_axis_atoms 0 1 \
   --camera_up_atoms 0 1 3
 ```
