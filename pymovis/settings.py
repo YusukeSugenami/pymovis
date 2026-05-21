@@ -120,17 +120,6 @@ PARSER_ARGS = [
         },
     },
     {
-        "args": ["-b", "--basis"],
-        "kwargs": {
-            "default": None,
-            "help": (
-                "Basis function is retrieved from fchk file by default. "
-                "If you want to set basis function manually or fchk file does not contain basis information, "
-                "use this option like \"-b 6-31G(d,p)\""
-            ),
-        },
-    },
-    {
         "args": ["-t", "--transparent"],
         "kwargs": {
             "default": False,

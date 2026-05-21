@@ -172,7 +172,6 @@ Positional arguments:
 Options:
   -o, --out               Output file names
   -i, --iso               Isosurface value
-  -b, --basis             Basis set name for manual specification
   -t, --transparent       Transparent background flag
   -cp, --camera_pos       Manual camera position
   -cf, --camera_focal     Manual camera focal point
