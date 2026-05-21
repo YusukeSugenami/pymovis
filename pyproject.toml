@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pymovis"
-version = "0.1.0"
+version = "0.1.1"
 description = "Molecular Orbital Visualization System - A Python package for visualizing molecular orbitals from quantum chemistry calculations"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -39,6 +39,7 @@ dev = [
 
 [project.urls]
 Repository = "https://github.com/YusukeSugenami/pymovis"
+PyPI = "https://pypi.org/project/pymovis/"
 
 [project.scripts]
 pymovis = "pymovis.pymovis:cli"

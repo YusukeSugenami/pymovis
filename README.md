@@ -13,7 +13,13 @@ PyMovis is a Python package for visualizing molecular orbitals from quantum chem
 
 ## Installation
 
-### From source
+You can install PyMovis via pip install
+
+```bash
+pip install pymovis
+```
+
+or from souce code.
 
 ```bash
 git clone https://github.com/YusukeSugenami/pymovis.git
