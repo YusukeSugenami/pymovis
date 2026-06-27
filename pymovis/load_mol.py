@@ -158,9 +158,9 @@ class MoleculeData:
         mol = self._build_mol()
         S = mol.intor("int1e_ovlp")
         C = self.mo_coeff
-        nao = S.shape[0]
-        I = np.eye(nao)
-        err = np.linalg.norm(C.T @ S @ C - I) / nao
+        nmo = C.shape[1]
+        I = np.eye(nmo)
+        err = np.linalg.norm(C.T @ S @ C - I) / nmo
 
         if err > tol:
             raise ValueError(f"mo coefficients are not orthogonal with error {err}")
@@ -182,8 +182,9 @@ class MoleculeData:
         dx, dy, dz = grid_size
         dV = abs(dx * dy * dz)
         gram = psi_vals.T @ psi_vals * dV
-        I = np.eye(self.mo_coeff.shape[1])
-        err = np.linalg.norm(gram - I) / self.mo_coeff.shape[1]
+        nmo = self.mo_coeff.shape[1]
+        I = np.eye(nmo)
+        err = np.linalg.norm(gram - I) / nmo
         if err > tol:
             raise ValueError(f"MO orthonormality check on grid failed with error {err}")
         else:
