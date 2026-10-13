@@ -7,7 +7,7 @@ import pyvista as pv
 import argparse
 
 from .settings import *
-from .load_mol import load_inp
+from .load_mol import load_inp, MoleculeData
 from .camera_utils import (
     infer_atom_axis_camera_fit_from_coords,
     infer_axis_camera_fit_from_coords,
@@ -208,8 +208,8 @@ def save_mo_plot(
 
 
 def savemo(
-    inp_file: str,
-    mo_index: list[int | str],
+    inp_file: str | None = None,
+    mo_index: list[int | str] | int | str = -1,
     out_name: list[str] | None = None,
     iso: float = 0.03,
     camera_pos: list[float] | None = None,
@@ -223,6 +223,23 @@ def savemo(
     camera_up_reference: list[float] | None = None,
     transparent_background: bool = True,
     without_mo: bool = False,
+    molecule: Any | None = None,
+    atomnos: np.ndarray | list[int] | None = None,
+    atom_symbols: list[str] | None = None,
+    coords: np.ndarray | list[list[float]] | None = None,
+    coords_unit: str = "Bohr",
+    basis: dict | list | str | None = None,
+    mo_coeff: np.ndarray | None = None,
+    mo_coeff_beta: np.ndarray | None = None,
+    mo_occ: np.ndarray | None = None,
+    mo_occ_beta: np.ndarray | None = None,
+    mo_energy: np.ndarray | None = None,
+    mo_energy_beta: np.ndarray | None = None,
+    charge: int = 0,
+    multiplicity: int = 1,
+    mo_cube: np.ndarray | None = None,
+    origin: np.ndarray | None = None,
+    grid_vecs: np.ndarray | None = None,
 ) -> None:
     """
     Load molecular data, evaluate selected orbitals, and save plots.
@@ -247,7 +264,12 @@ def savemo(
     """
 
     # Determine output file names based on input file name and MO index
-    basename, _ = os.path.basename(inp_file).rsplit(".", 1)
+    if isinstance(mo_index, (int, str)):
+        mo_index = [mo_index]
+    if inp_file is not None:
+        basename = os.path.splitext(os.path.basename(inp_file))[0]
+    else:
+        basename = "pymovis"
     # if output name is not provided, generate it based on the input file name and MO index
     if out_name is None: 
         if mo_index[0] == -1:
@@ -263,7 +285,34 @@ def savemo(
             # If any name does not end with an image suffix, append the default suffix.
             out_name = [f"{name}.{DEFAULT_OUT_SUFFIX}" if not name.endswith(IMAGE_SUFFIXES) else name for name in out_name]
     
-    moldata = load_inp(inp_file)
+    if molecule is not None:
+        if any(value is not None for value in (inp_file, atomnos, atom_symbols, coords, basis, mo_coeff, mo_cube)):
+            raise ValueError("molecule cannot be combined with file or direct molecular data")
+        moldata = molecule
+    elif inp_file is not None:
+        moldata = load_inp(inp_file)
+    else:
+        if coords is None or (atomnos is None and atom_symbols is None):
+            raise ValueError("direct input requires coords and atomnos or atom_symbols")
+        moldata = MoleculeData(
+            file_type="cube" if mo_cube is not None else "arrays",
+            coords=np.asarray(coords, dtype=float),
+            coords_unit=coords_unit,
+            atomnos=None if atomnos is None else np.asarray(atomnos, dtype=int),
+            atom_symbols=atom_symbols,
+            basis=basis,
+            mo_coeff=mo_coeff,
+            mo_coeff_beta=mo_coeff_beta,
+            mo_occ=mo_occ,
+            mo_occ_beta=mo_occ_beta,
+            mo_energy=mo_energy,
+            mo_energy_beta=mo_energy_beta,
+            charge=charge,
+            multiplicity=multiplicity,
+            mo_cube=mo_cube,
+            origin=origin,
+            grid_vecs=grid_vecs,
+        )
     if without_mo:
         moldata.mo_info = False
 

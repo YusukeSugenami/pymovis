@@ -34,6 +34,27 @@ def read_fchk_array(lines : list[str], key : str, dtype=float) -> np.ndarray:
     raise ValueError(f"{key} not found")
 
 
+def read_fchk_array_optional(lines: list[str], key: str, dtype=float) -> np.ndarray | None:
+    try:
+        return read_fchk_array(lines, key, dtype)
+    except ValueError:
+        return None
+
+
+def read_fchk_scalar(lines: list[str], key: str, dtype=float):
+    for line in lines:
+        if key in line:
+            return dtype(line.split()[-1])
+    raise ValueError(f"{key} not found")
+
+
+def read_fchk_scalar_optional(lines: list[str], key: str, dtype=float):
+    try:
+        return read_fchk_scalar(lines, key, dtype)
+    except ValueError:
+        return None
+
+
 def _num_cart_ao(l: int) -> int:
     return (l + 1) * (l + 2) // 2
 
@@ -260,14 +281,24 @@ def load_fchk(inp_file : str) -> dict:
     # ----------------------------------
     
     nao = current_ao
-    coeffs = read_fchk_array(lines, "Alpha MO coefficients")
-    nmo = coeffs.size // nao
-    C = coeffs.reshape(nmo, nao).T # [ao, mo]
+    def reorder_coefficients(coeffs: np.ndarray) -> np.ndarray:
+        if coeffs.size % nao:
+            raise ValueError("MO coefficient count is not divisible by the AO count")
+        nmo = coeffs.size // nao
+        C = coeffs.reshape(nmo, nao).T
+        C_new = np.zeros_like(C)
+        for i, (ao, aoc) in enumerate(zip(ao_ordering, ao_scaling)):
+            C_new[i] = C[ao] * aoc
+        return C_new
 
-    # reorderign and scaling of MO coefficients for visualization
-    C_new = np.zeros_like(C)
-    for i, (ao, aoc) in enumerate(zip(ao_ordering, ao_scaling)):
-        C_new[i] = C[ao] * aoc
+    alpha_coeffs = read_fchk_array(lines, "Alpha MO coefficients")
+    C_new = reorder_coefficients(alpha_coeffs)
+    beta_coeffs = read_fchk_array_optional(lines, "Beta MO coefficients")
+    beta_C_new = None if beta_coeffs is None else reorder_coefficients(beta_coeffs)
+    alpha_energy = read_fchk_array_optional(lines, "Alpha Orbital Energies")
+    beta_energy = read_fchk_array_optional(lines, "Beta Orbital Energies")
+    n_alpha = read_fchk_scalar(lines, "Number of alpha electrons", int)
+    n_beta = read_fchk_scalar(lines, "Number of beta electrons", int)
 
 
     # return all parsed information in a dict for later use
@@ -278,6 +309,16 @@ def load_fchk(inp_file : str) -> dict:
         'coords' : coords,
         'coords_unit' : coords_unit,
         'mo_coeff' : C_new,
+        'mo_coeff_beta' : beta_C_new,
+        'mo_occ' : np.array([1.0 if i < n_alpha else 0.0 for i in range(C_new.shape[1])]),
+        'mo_occ_beta' : (
+            None if beta_C_new is None
+            else np.array([1.0 if i < n_beta else 0.0 for i in range(beta_C_new.shape[1])])
+        ),
+        'mo_energy' : alpha_energy,
+        'mo_energy_beta' : beta_energy,
+        'charge' : read_fchk_scalar_optional(lines, "Charge", int) or 0,
+        'multiplicity' : n_alpha - n_beta + 1,
         'basis' : primitive_data,
         'shell_type' : 'mixed' if mixed_shells else 'cart' if has_cartesian else 'sph',
         'ao_shell_types' : ao_shell_types
@@ -343,7 +384,17 @@ def load_cube(inp_file: str) -> dict:
 def load_pyscfchk(inp_file: str) -> dict:
 
     mo_coeff = lib.chkfile.load(inp_file, 'scf/mo_coeff')
+    mo_occ = lib.chkfile.load(inp_file, 'scf/mo_occ')
+    mo_energy = lib.chkfile.load(inp_file, 'scf/mo_energy')
     mol = lib.chkfile.load_mol(inp_file)
+    if isinstance(mo_coeff, (tuple, list)):
+        mo_coeff_alpha, mo_coeff_beta = mo_coeff
+        mo_occ_alpha, mo_occ_beta = mo_occ
+        mo_energy_alpha, mo_energy_beta = mo_energy
+    else:
+        mo_coeff_alpha, mo_coeff_beta = mo_coeff, None
+        mo_occ_alpha, mo_occ_beta = mo_occ, None
+        mo_energy_alpha, mo_energy_beta = mo_energy, None
 
     pyscfchk_info = {
         'file_type' : 'pyscfchk',
@@ -351,7 +402,14 @@ def load_pyscfchk(inp_file: str) -> dict:
         'atomnos' : mol.atom_charges(),
         'coords' : mol.atom_coords(),
         'coords_unit' : 'Bohr',
-        'mo_coeff' : mo_coeff,
+        'mo_coeff' : mo_coeff_alpha,
+        'mo_coeff_beta' : mo_coeff_beta,
+        'mo_occ' : mo_occ_alpha,
+        'mo_occ_beta' : mo_occ_beta,
+        'mo_energy' : mo_energy_alpha,
+        'mo_energy_beta' : mo_energy_beta,
+        'charge' : mol.charge,
+        'multiplicity' : mol.spin + 1,
         'basis' : mol.basis,
         'shell_type' : 'cart' if mol.cart else 'sph'
     }

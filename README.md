@@ -238,6 +238,41 @@ savemo(
 
 ### `load_inp`
 
+### Direct molecular data
+
+`savemo` can also be used without an input file.  Provide atomic data, a
+PySCF-compatible basis, and alpha MO coefficients directly:
+
+```python
+import numpy as np
+from pymovis import savemo
+
+savemo(
+    mo_index=["HOMO", "LUMO"],
+    atom_symbols=["O", "H", "H"],
+    coords=np.array([[0, 0, 0], [0, 1.4, 1.1], [0, -1.4, 1.1]]),
+    coords_unit="Bohr",
+    basis={"H": [[0, (1.0, 1.0)]], "O": [[0, (1.0, 1.0)]]},
+    mo_coeff=coefficients,
+    camera_axis="Z",
+)
+```
+
+For a precomputed cube, pass `atomnos` or `atom_symbols`, `coords`,
+`mo_cube`, `origin`, and `grid_vecs` instead of `basis` and `mo_coeff`.
+`molecule=MoleculeData(...)` is also accepted when the data object is already
+constructed.
+
+### Charged and open-shell systems
+
+Formatted checkpoint files now use the alpha and beta electron counts and
+read both alpha and beta MO coefficient arrays when present.  `HOMO` and
+`LUMO` are resolved independently from the occupied orbital arrays rather
+than from the sum of atomic numbers.  Select a spin channel with
+`"alpha:HOMO"`, `"beta:HOMO"`, `"A:LUMO"`, or `"B:LUMO"`.  Direct and PySCF
+checkpoint inputs accept `charge`, `multiplicity`, `mo_occ`, `mo_occ_beta`,
+`mo_coeff_beta`, `mo_energy`, and `mo_energy_beta`.
+
 ```python
 from pymovis import load_inp
 mol = load_inp("test.fchk")
@@ -298,4 +333,3 @@ pymovis water.fchk HOMO \
 ```bash
 pymovis water.fchk HOMO --transparent True
 ```
-

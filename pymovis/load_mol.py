@@ -14,9 +14,16 @@ class MoleculeData:
         atom_symbols: list | None = None,
         atomnos: np.ndarray | None = None,
         basis: list | str | None = None,
-        shell_type: str | None = None,
+        shell_type: str | None = "sph",
         ao_shell_types: list[int] | None = None,
         mo_coeff: np.ndarray | None = None,
+        mo_coeff_beta: np.ndarray | None = None,
+        mo_occ: np.ndarray | None = None,
+        mo_occ_beta: np.ndarray | None = None,
+        mo_energy: np.ndarray | None = None,
+        mo_energy_beta: np.ndarray | None = None,
+        charge: int = 0,
+        multiplicity: int = 1,
         origin: np.ndarray | None = None,
         grid_vecs: np.ndarray | None = None,
         mo_cube: np.ndarray | None = None
@@ -37,6 +44,14 @@ class MoleculeData:
 
         self.atom_symbols : list[str] = atom_symbols
         self.atomnos : np.ndarray = atomnos
+        self.charge = int(charge)
+        self.multiplicity = int(multiplicity)
+        self.mo_coeff_alpha = mo_coeff
+        self.mo_coeff_beta = mo_coeff_beta
+        self.mo_occ_alpha = None if mo_occ is None else np.asarray(mo_occ, dtype=float)
+        self.mo_occ_beta = None if mo_occ_beta is None else np.asarray(mo_occ_beta, dtype=float)
+        self.mo_energy_alpha = None if mo_energy is None else np.asarray(mo_energy, dtype=float)
+        self.mo_energy_beta = None if mo_energy_beta is None else np.asarray(mo_energy_beta, dtype=float)
 
         # MO information (optional, but required for MO visualization)
         if file_type == "cube":
@@ -74,6 +89,7 @@ class MoleculeData:
                     self.basis = basis
                     self.mo_coeff = mo_coeff
                     self.shell_type = shell_type              
+                self._initialize_occupations()
 
     
     def _convert_A2B(self) -> None:
@@ -94,30 +110,78 @@ class MoleculeData:
 
         return
 
-    def _parse_orbitalindex(self, mo_index : int | str) -> int:
+    def _initialize_occupations(self) -> None:
+        if self.mo_coeff_alpha is None:
+            return
+        nmo = self.mo_coeff_alpha.shape[1]
+        total_electrons = int(round(np.sum(self.atomnos) - self.charge))
+        if self.multiplicity < 1:
+            raise ValueError("multiplicity must be a positive integer")
+        if (total_electrons + self.multiplicity - 1) % 2:
+            raise ValueError(
+                "charge and multiplicity imply a non-integer number of alpha electrons"
+            )
+        n_alpha = (total_electrons + self.multiplicity - 1) // 2
+        n_beta = total_electrons - n_alpha
+        if n_alpha < 0 or n_beta < 0:
+            raise ValueError("charge and multiplicity imply a negative electron count")
+        if n_alpha > nmo or (self.mo_coeff_beta is not None and n_beta > self.mo_coeff_beta.shape[1]):
+            raise ValueError("the supplied MO coefficient arrays have too few orbitals")
+        if self.mo_occ_alpha is None:
+            self.mo_occ_alpha = np.array([1.0 if i < n_alpha else 0.0 for i in range(nmo)])
+        if self.mo_coeff_beta is not None and self.mo_occ_beta is None:
+            self.mo_occ_beta = np.array(
+                [1.0 if i < n_beta else 0.0 for i in range(self.mo_coeff_beta.shape[1])]
+            )
+
+    def _parse_orbitalindex(self, mo_index: int | str) -> tuple[str, int]:
+        self._initialize_occupations()
+        spin = "alpha"
+        label = str(mo_index).strip()
+        lower_label = label.lower()
+        for prefix in ("alpha:", "a:", "beta:", "b:"):
+            if lower_label.startswith(prefix):
+                spin = "beta" if prefix in ("beta:", "b:") else "alpha"
+                label = label[len(prefix):].strip()
+                break
+        if lower_label.endswith("_alpha") or lower_label.endswith("-alpha"):
+            spin, label = "alpha", label[:-6]
+        elif lower_label.endswith("_beta") or lower_label.endswith("-beta"):
+            spin, label = "beta", label[:-5]
 
         try:
-            mo_index = int(mo_index)
-            if mo_index < 0:
+            index = int(label)
+            if index < 0:
                 raise ValueError("mo index must be non-negative")
-            return mo_index
+            return spin, index
         except ValueError as _:
-            homo_index = int(sum(self.atomnos) / 2 - 1)
-            mo_index = str(mo_index).strip().upper()
-            if mo_index.startswith("HOMO"):
-                if mo_index == "HOMO":
+            label = label.upper()
+            occupations = (
+                self.mo_occ_beta if spin == "beta" and self.mo_occ_beta is not None
+                else self.mo_occ_alpha
+            )
+            coefficients = (
+                self.mo_coeff_beta if spin == "beta" and self.mo_coeff_beta is not None
+                else self.mo_coeff_alpha
+            )
+            if occupations is None or coefficients is None:
+                raise ValueError(f"{spin} orbitals are not available")
+            occupied = np.flatnonzero(occupations > 1e-8)
+            homo_index = int(occupied[-1]) if occupied.size else -1
+            if label.startswith("HOMO"):
+                if label == "HOMO":
                     index = homo_index
                 else:
-                    m = re.match(r"HOMO([+-]\d+)", mo_index)
+                    m = re.fullmatch(r"HOMO([+-]\d+)", label)
                     if m:
                         index = homo_index + int(m.group(1))
                     else:
                         index = None
-            elif mo_index.startswith("LUMO"):
-                if mo_index == "LUMO":
+            elif label.startswith("LUMO"):
+                if label == "LUMO":
                     index = homo_index + 1
                 else:
-                    m = re.match(r"LUMO([+-]\d+)", mo_index)
+                    m = re.fullmatch(r"LUMO([+-]\d+)", label)
                     if m:
                         index = homo_index + 1 + int(m.group(1))
                     else:
@@ -126,10 +190,10 @@ class MoleculeData:
                 index = None
             if index is None:
                 raise ValueError(f"failed to parse mo index {mo_index}")
-            if index < 0 or index >= self.mo_coeff.shape[1]:
+            if index < 0 or index >= coefficients.shape[1]:
                 raise ValueError(f"mo index {mo_index} is out of bounds")
             
-            return index
+            return spin, index
 
     def _build_mol(self, cart: bool | None = None) -> gto.Mole:
 
@@ -241,7 +305,13 @@ class MoleculeData:
             self.mo_cube = None
             return
 
-        mo_index = self._parse_orbitalindex(mo_index)
+        spin, mo_index = self._parse_orbitalindex(mo_index)
+        coefficients = (
+            self.mo_coeff_beta if spin == "beta" and self.mo_coeff_beta is not None
+            else self.mo_coeff_alpha
+        )
+        if coefficients is None:
+            raise ValueError(f"{spin} MO coefficients are not available")
 
         if self.shell_type != "mixed":
             self._check_mo_identity()
@@ -278,7 +348,7 @@ class MoleculeData:
 
         if self.shell_type == "mixed":
             self._check_mo_identity_on_grid(basis_vals, grid_size=[dx, dy, dz])
-        mo = (basis_vals @ self.mo_coeff[:, mo_index]).reshape(grid_shape)
+        mo = (basis_vals @ coefficients[:, mo_index]).reshape(grid_shape)
 
         self.origin = min_xyz
         self.grid_vecs = grid_vecs
