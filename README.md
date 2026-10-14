@@ -2,15 +2,6 @@
 
 PyMovis is a Python package for visualizing molecular orbitals from quantum chemistry calculations. It reads Gaussian formatted checkpoint files, cube files, and PySCF checkpoint files, then renders 3D orbital isosurfaces with PyVista.
 
-## Features
-
-- Visualize molecular orbitals from `fchk`, `cube`, and `chk` files
-- Select orbitals by index or by labels such as `HOMO`, `LUMO`, `HOMO-1`, `LUMO+2`
-- Render atoms, bonds, and orbital isosurfaces in 3D
-- Use automatic camera placement with axis-based views
-- Specify camera center and camera axes from atom indices
-- Save high-quality images with transparent backgrounds
-
 ## Installation
 
 You can install PyMovis with pip:
@@ -26,6 +17,24 @@ git clone https://github.com/YusukeSugenami/pymovis.git
 cd pymovis
 pip install -e .
 ```
+
+## Dependencies
+
+PyMovis requires Python 3.12 or later and installs these runtime
+dependencies:
+
+- [NumPy](https://numpy.org/) `>=1.20.0`
+- [periodictable](https://pypi.org/project/periodictable/) `>=2.1.0`
+- [PySCF](https://pyscf.org/) `>=2.13.0`
+- [PyVista](https://pyvista.org/) `>=0.48.4`
+
+For development and testing, install the optional development dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
+This additionally installs pytest, pytest-cov, Black, Ruff, and isort.
 
 ## Quick Start
 
@@ -319,32 +328,3 @@ Important values include:
 - `IMAGE_QUALITY`
 - `BACKGROUND_COLOR`
 - `PARSER_ARGS`
-
-## Example Workflows
-
-### Visualize the HOMO from a file
-
-```bash
-pymovis water.fchk HOMO
-```
-
-### Visualize HOMO and LUMO with automatic axis view
-
-```bash
-pymovis water.fchk HOMO LUMO --camera_axis Z
-```
-
-### Visualize with atom-defined camera center and axes
-
-```bash
-pymovis water.fchk HOMO \
-  --camera_focal_atoms 0 1 2 \
-  --camera_axis_atoms 0 1 \
-  --camera_up_atoms 0 1 3
-```
-
-### Save transparent output
-
-```bash
-pymovis water.fchk HOMO --transparent True
-```

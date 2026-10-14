@@ -26,7 +26,7 @@ from .camera_utils import (
 )
 from .settings import ELEMENT_DATA, ORBITAL_COLORS
 
-__version__ = "0.1.0"
+__version__ = "0.1.3"
 __author__ = "PyMovis Contributors"
 
 __all__ = [
