@@ -13,13 +13,13 @@ PyMovis is a Python package for visualizing molecular orbitals from quantum chem
 
 ## Installation
 
-You can install PyMovis via pip install
+You can install PyMovis with pip:
 
 ```bash
 pip install pymovis
 ```
 
-or from souce code.
+or from source:
 
 ```bash
 git clone https://github.com/YusukeSugenami/pymovis.git
@@ -286,11 +286,26 @@ If you want to use the camera logic directly, the package exposes helper functio
 
 ```python
 from pymovis import (
-    infer_camera_from_coords,
     infer_axis_camera_fit_from_coords,
     infer_atom_axis_camera_fit_from_coords,
+    resolve_camera_position,
 )
 ```
+
+`resolve_camera_position` applies the same precedence rules as `savemo` and
+returns `(camera_pos, camera_focal, camera_up)`. Atom-defined axes take
+precedence over `camera_axis`, while an explicitly supplied `camera_up`
+overrides an inferred up vector.
+
+## Package structure
+
+The package separates responsibilities into focused modules:
+
+- `parser/`: file-format-specific readers for `.fchk`, `.cube`, and `.chk`
+- `load_mol.py`: normalized `MoleculeData`, orbital selection, and grid evaluation
+- `camera_utils.py`: camera geometry, fitting, and option resolution
+- `renderer.py`: PyVista scene construction and image output
+- `pymovis.py`: public orchestration and command-line entry point
 
 ## Configuration
 

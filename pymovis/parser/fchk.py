@@ -1,0 +1,320 @@
+"""Gaussian formatted-checkpoint parser."""
+
+import numpy as np
+import periodictable
+from typing import Any
+
+###############################################################################
+# fchk parser
+###############################################################################
+
+def read_fchk_array(
+    lines: list[str],
+    key: str,
+    dtype: Any = float,
+) -> np.ndarray:
+    """Read a typed array field from a formatted checkpoint file."""
+    for i, line in enumerate(lines):
+        if key in line:
+            n = int(line.split()[-1]) # number of elements in the array
+            vals = []
+            j = i + 1
+            while len(vals) < n:
+                vals.extend(lines[j].split())
+                j += 1
+            return np.array(vals[:n], dtype=dtype)
+
+    raise ValueError(f"{key} not found")
+
+
+def read_fchk_array_optional(
+    lines: list[str],
+    key: str,
+    dtype: Any = float,
+) -> np.ndarray | None:
+    """Read an optional array field, returning ``None`` when it is absent."""
+    try:
+        return read_fchk_array(lines, key, dtype)
+    except ValueError:
+        return None
+
+
+def read_fchk_scalar(
+    lines: list[str],
+    key: str,
+    dtype: Any = float,
+) -> Any:
+    """Read a typed scalar field from a formatted checkpoint file."""
+    for line in lines:
+        if key in line:
+            return dtype(line.split()[-1])
+    raise ValueError(f"{key} not found")
+
+
+def read_fchk_scalar_optional(
+    lines: list[str],
+    key: str,
+    dtype: Any = float,
+) -> Any | None:
+    """Read an optional scalar field, returning ``None`` when it is absent."""
+    try:
+        return read_fchk_scalar(lines, key, dtype)
+    except ValueError:
+        return None
+
+
+def _num_cart_ao(l: int) -> int:
+    return (l + 1) * (l + 2) // 2
+
+
+def _num_sph_ao(l: int) -> int:
+    return 2 * l + 1
+
+shell_ao_map: dict[int, list[tuple[int, list[int]]]] = {
+     0 : [(0, [0])],
+    -1 : [(0, [0]), (1, [0, 1, 2])], # SP shell, only S part is considered here, P part is handled separately
+     1 : [(1, [0, 1, 2])],
+    -2 : [(-2, [4, 2, 0, 1, 3])], #spherical d
+     2 : [(2, [0, 3, 4, 1, 5, 2])], # cartecian d
+    -3 : [(-3, [6, 4, 2, 0, 1, 3, 5])], # spherical f
+     3 : [(3, [0, 4, 5, 3, 9, 6, 1, 8, 7, 2])], # cartesian f
+    -4 : [(-4, [8, 6, 4, 2, 0, 1, 3, 5, 7])], # spherical g
+     4 : [(4, [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0])] # cartesian g
+}
+
+d_const = np.sqrt(15 / (4 * np.pi))
+f_const = np.sqrt(105 / (4 * np.pi))
+g_const = np.sqrt(945 / (4 * np.pi))
+ao_scaling_factors: dict[int, list[float]] = {
+    0 : [1.0], # s
+    1 : [1.0, 1.0, 1.0], # p
+    -2 : [1.0, 1.0, 1.0, 1.0, 1.0], # spherical d
+    2 : [
+        d_const / np.sqrt(3), #dxx
+        d_const,              #dxy
+        d_const,              #dxz
+        d_const / np.sqrt(3), #dyy
+        d_const,              #dyz
+        d_const / np.sqrt(3)  #dzz
+    ], # cartesian d
+    -3 : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], # spherical f
+    3 : [
+        f_const / np.sqrt(15), #fxxx
+        f_const / np.sqrt(3),  #fxxy
+        f_const / np.sqrt(3),  #fxxz
+        f_const / np.sqrt(3),  #fxyy
+        f_const,               #fxyz
+        f_const / np.sqrt(3),  #fxzz
+        f_const / np.sqrt(15), #fyyy
+        f_const / np.sqrt(3),  #fyyz
+        f_const / np.sqrt(3),  #fyzz
+        f_const / np.sqrt(15)  #fzzz
+    ], # cartesian f
+    -4 : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], # spherical g
+    4 : [
+        g_const / np.sqrt(105), #gxxxx
+        g_const / np.sqrt(15),  #gxxxy
+        g_const / np.sqrt(15),  #gxxxz
+        g_const / np.sqrt(9),  #gxxyy
+        g_const / np.sqrt(3),   #gxxyz
+        g_const / np.sqrt(9),  #gxxzz
+        g_const / np.sqrt(15), #gxyyy
+        g_const / np.sqrt(3),  #gxyyz
+        g_const / np.sqrt(3),  #gxyzz
+        g_const / np.sqrt(15), #gxzzz
+        g_const / np.sqrt(105), #gyyyy
+        g_const / np.sqrt(15),  #gyyyz
+        g_const / np.sqrt(9),  #gyyzz
+        g_const / np.sqrt(15), #gyzzz
+        g_const / np.sqrt(105)  #gzzzz
+    ], # cartesian g
+}
+
+def load_fchk(inp_file: str) -> dict[str, Any]:
+    """Read geometry, basis data, and alpha/beta orbitals from a Gaussian fchk."""
+
+    with open(inp_file) as f:
+        lines = f.readlines()
+    
+    # ----------------------------------
+    # parse geometries
+    # ----------------------------------
+
+    atomnos = read_fchk_array(lines, "Atomic numbers", int) # array of atomic numbers starts from 1
+    coords = read_fchk_array(lines, "Current cartesian coordinates").reshape(-1, 3) # coordinates in Bohr
+    coords_unit = 'Bohr'
+    atom_symbols = []
+    for i, z in enumerate(atomnos):
+        symbol = periodictable.elements[z]
+        atom_symbols.append(f'{symbol}{i}')
+
+    
+    # ----------------------------------
+    # parse basis functions
+    # ----------------------------------
+
+    shell_types = read_fchk_array(lines, "Shell types", int)
+    nprim_per_shell = read_fchk_array(lines, "Number of primitives per shell", int)
+    shell_to_atom = read_fchk_array(lines, "Shell to atom map", int)
+    primitive_exponents = read_fchk_array(lines, "Primitive exponents") 
+    contraction_coeffs = read_fchk_array(lines, "Contraction coefficients")
+
+    # SP shell coefficients
+    try:
+        p_con_coeffs = read_fchk_array(lines, "P(S=P) Contraction coefficients")
+    except ValueError:
+        p_con_coeffs = None
+    
+    # check consistency of basis information
+    if not (len(shell_types) == len(nprim_per_shell) == len(shell_to_atom)):
+        raise ValueError("Inconsistent shell information in fchk file")
+    if not (len(primitive_exponents) == len(contraction_coeffs) == sum(nprim_per_shell)):
+        raise ValueError("Inconsistent primitive information in fchk file")
+    if any(stype == -1 for stype in shell_types) and p_con_coeffs is None:
+        raise ValueError("SP shells detected but P(S=P) contraction coefficients are missing in fchk file")
+
+    # check orbital type: spherical / cartesian
+    has_cartesian = any(x > 1 for x in shell_types)
+    has_spherical = any(x < -1 for x in shell_types)
+    if has_cartesian and has_spherical:
+        print("Warning: Mixed Cartesian and spherical shells detected in fchk file.")
+        mixed_shells = True
+        #raise RuntimeError("Mixed Cartesian/spherical shells detected")
+    else:
+        mixed_shells = False
+
+
+    # ----------------------------------
+    # construct pyscf basis
+    # ----------------------------------
+
+    prim_ptr = 0
+    current_ao = 0
+    primitive_data = {}
+    ao_data = {}
+    shell_data = {}
+    for ish, stype in enumerate(shell_types):
+        nprim = nprim_per_shell[ish]
+        atom_idx = shell_to_atom[ish] - 1 # 0 start index for python
+        atom_symbol = atom_symbols[atom_idx]
+        exps = primitive_exponents[prim_ptr : prim_ptr + nprim]
+        coeffs = contraction_coeffs[prim_ptr : prim_ptr + nprim]
+        exps_coeffs = list(zip(exps, coeffs))
+
+        exps_pcoeffs = None
+        if p_con_coeffs is not None:
+            pcoeffs = p_con_coeffs[prim_ptr : prim_ptr + nprim]
+            exps_pcoeffs = list(zip(exps, pcoeffs))
+        else:
+            pcoeffs = None
+        
+        prim_ptr += nprim
+
+        # store primitive data for pyscf basis construction
+        primitive_data.setdefault(atom_symbol, [])
+        shell_data.setdefault(atom_symbol, [])
+        if stype == -1:  # SP shell
+            if exps_pcoeffs is None:
+                raise ValueError("SP shell requires P(S=P) contraction coefficients")
+            # S shell
+            s_block : list = [0]
+            s_block.extend(exps_coeffs)
+            primitive_data[atom_symbol].append(s_block)
+            shell_data[atom_symbol].append(0)
+
+            # P shell
+            p_block : list = [1]
+            p_block.extend(exps_pcoeffs)
+            primitive_data[atom_symbol].append(p_block)
+            shell_data[atom_symbol].append(1)
+
+        else: # normal shells
+            block = [abs(stype)]
+            block.extend(exps_coeffs)
+            primitive_data[atom_symbol].append(block)
+            shell_data[atom_symbol].append(stype)
+
+        # store AO index for MO coefficient reordering and scaling
+        ao_data.setdefault(atom_symbol, [])
+        for shell_type, ao_map in shell_ao_map[stype]:
+            ao_indices = [current_ao + i for i in ao_map]
+            ao_data[atom_symbol].append((shell_type, ao_indices))
+            current_ao += len(ao_map)            
+
+    for atom_symbol in primitive_data:
+        primitive_data[atom_symbol].sort(key=lambda x: x[0])
+        shell_data[atom_symbol].sort(key=lambda x: abs(x))
+
+    ao_ordering = []
+    ao_scaling = []
+    ao_shell_types = []
+    for atom_symbol in ao_data:
+        ao_data[atom_symbol].sort(key=lambda x: abs(x[0])) # sort shells by absolute angular momentum (keep S, P before D, etc.)
+        for shell_type, ao_indices in ao_data[atom_symbol]:
+            ao_ordering.extend(ao_indices)
+            ao_scaling.extend(ao_scaling_factors[shell_type])
+            ao_shell_types.append(shell_type)
+
+    # Validate shell metadata consistency for mixed-shell AO assembly.
+    if mixed_shells:
+        n_ao_from_shell_meta = 0
+        for shell_type in ao_shell_types:
+            l = abs(shell_type)
+            if shell_type > 1:
+                n_ao_from_shell_meta += _num_cart_ao(l)
+            else:
+                n_ao_from_shell_meta += _num_sph_ao(l)
+        if n_ao_from_shell_meta != current_ao:
+            raise ValueError(
+                f"AO count mismatch in shell metadata: expected {current_ao}, got {n_ao_from_shell_meta}"
+            )
+    
+    # ----------------------------------
+    # parse mo coefficients
+    # ----------------------------------
+    
+    nao = current_ao
+    def reorder_coefficients(coeffs: np.ndarray) -> np.ndarray:
+        if coeffs.size % nao:
+            raise ValueError("MO coefficient count is not divisible by the AO count")
+        nmo = coeffs.size // nao
+        C = coeffs.reshape(nmo, nao).T
+        C_new = np.zeros_like(C)
+        for i, (ao, aoc) in enumerate(zip(ao_ordering, ao_scaling)):
+            C_new[i] = C[ao] * aoc
+        return C_new
+
+    alpha_coeffs = read_fchk_array(lines, "Alpha MO coefficients")
+    C_new = reorder_coefficients(alpha_coeffs)
+    beta_coeffs = read_fchk_array_optional(lines, "Beta MO coefficients")
+    beta_C_new = None if beta_coeffs is None else reorder_coefficients(beta_coeffs)
+    alpha_energy = read_fchk_array_optional(lines, "Alpha Orbital Energies")
+    beta_energy = read_fchk_array_optional(lines, "Beta Orbital Energies")
+    n_alpha = read_fchk_scalar(lines, "Number of alpha electrons", int)
+    n_beta = read_fchk_scalar(lines, "Number of beta electrons", int)
+
+
+    # return all parsed information in a dict for later use
+    fchk_info = {
+        'file_type' : 'fchk',
+        'atom_symbols' : atom_symbols,
+        'atomnos' : atomnos,
+        'coords' : coords,
+        'coords_unit' : coords_unit,
+        'mo_coeff' : C_new,
+        'mo_coeff_beta' : beta_C_new,
+        'mo_occ' : np.array([1.0 if i < n_alpha else 0.0 for i in range(C_new.shape[1])]),
+        'mo_occ_beta' : (
+            None if beta_C_new is None
+            else np.array([1.0 if i < n_beta else 0.0 for i in range(beta_C_new.shape[1])])
+        ),
+        'mo_energy' : alpha_energy,
+        'mo_energy_beta' : beta_energy,
+        'charge' : read_fchk_scalar_optional(lines, "Charge", int) or 0,
+        'multiplicity' : n_alpha - n_beta + 1,
+        'basis' : primitive_data,
+        'shell_type' : 'mixed' if mixed_shells else 'cart' if has_cartesian else 'sph',
+        'ao_shell_types' : ao_shell_types
+    }
+
+    return fchk_info

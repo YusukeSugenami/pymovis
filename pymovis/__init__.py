@@ -16,11 +16,13 @@ Example:
 
 """
 
-from .pymovis import cli, savemo, save_mo_plot, build_volume_grid, build_molstruct
+from .pymovis import cli, savemo
+from .renderer import build_molstruct, build_volume_grid, save_mo_plot
 from .load_mol import load_inp, MoleculeData
 from .camera_utils import (
     infer_atom_axis_camera_fit_from_coords,
     infer_axis_camera_fit_from_coords,
+    resolve_camera_position,
 )
 from .settings import ELEMENT_DATA, ORBITAL_COLORS
 
@@ -37,6 +39,7 @@ __all__ = [
     "MoleculeData",
     "infer_atom_axis_camera_fit_from_coords",
     "infer_axis_camera_fit_from_coords",
+    "resolve_camera_position",
     "ELEMENT_DATA",
     "ORBITAL_COLORS",
 ]

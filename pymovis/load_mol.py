@@ -1,19 +1,29 @@
+"""Normalized molecular data model and orbital grid evaluation."""
+
 import os
 import re
+from collections.abc import Sequence
+from typing import Any
+
 import numpy as np
 from pyscf import gto
-from .molfile_parser import load_cube, load_fchk, load_pyscfchk
+from .parser import load_cube, load_fchk, load_pyscfchk
 import periodictable
 
 class MoleculeData:
+    """Normalized molecular geometry and molecular-orbital data.
+
+    Parsing is delegated to :mod:`pymovis.parser`; this class owns unit
+    conversion, orbital selection, AO evaluation, and MO grid generation.
+    """
     def __init__(
         self, 
         file_type: str, 
         coords: np.ndarray,
         coords_unit: str = "Bohr",
-        atom_symbols: list | None = None,
+        atom_symbols: Sequence[str] | None = None,
         atomnos: np.ndarray | None = None,
-        basis: list | str | None = None,
+        basis: Any = None,
         shell_type: str | None = "sph",
         ao_shell_types: list[int] | None = None,
         mo_coeff: np.ndarray | None = None,
@@ -42,7 +52,7 @@ class MoleculeData:
             if atom_symbols is None:
                 atom_symbols = [periodictable.elements[z].symbol for z in atomnos]
 
-        self.atom_symbols : list[str] = atom_symbols
+        self.atom_symbols: list[str] = list(atom_symbols)
         self.atomnos : np.ndarray = atomnos
         self.charge = int(charge)
         self.multiplicity = int(multiplicity)
@@ -91,8 +101,12 @@ class MoleculeData:
                     self.shell_type = shell_type              
                 self._initialize_occupations()
 
+        if self.coords_unit == "Angstrom":
+            self._convert_A2B()
+
     
     def _convert_A2B(self) -> None:
+        """Convert stored coordinates from Angstrom to Bohr in place."""
 
         if self.coords_unit == "Bohr":
             return
@@ -102,6 +116,7 @@ class MoleculeData:
         return
 
     def _convert_B2A(self) -> None:
+        """Convert stored coordinates from Bohr to Angstrom in place."""
 
         if self.coords_unit == "Angstrom":
             return
@@ -111,6 +126,7 @@ class MoleculeData:
         return
 
     def _initialize_occupations(self) -> None:
+        """Infer missing occupations from electron count and multiplicity."""
         if self.mo_coeff_alpha is None:
             return
         nmo = self.mo_coeff_alpha.shape[1]
@@ -135,6 +151,7 @@ class MoleculeData:
             )
 
     def _parse_orbitalindex(self, mo_index: int | str) -> tuple[str, int]:
+        """Resolve an orbital index or HOMO/LUMO label to spin and index."""
         self._initialize_occupations()
         spin = "alpha"
         label = str(mo_index).strip()
@@ -196,9 +213,12 @@ class MoleculeData:
             return spin, index
 
     def _build_mol(self, cart: bool | None = None) -> gto.Mole:
+        """Build a PySCF molecule from the stored geometry and basis."""
 
         mol = gto.Mole()
         mol.unit = self.coords_unit
+        mol.charge = self.charge
+        mol.spin = self.multiplicity - 1
 
         atom_str = ""
         for symbol, (x, y, z) in zip(self.atom_symbols, self.coords):
@@ -214,7 +234,15 @@ class MoleculeData:
 
         return mol
 
-    def _check_mo_identity(self, tol : float = 1e-6) -> None:
+    def _check_mo_identity(self, tol: float = 1e-5) -> None:
+        """Validate MO orthonormality in the AO overlap metric.
+
+        Formatted checkpoint files contain decimal representations of both
+        orbital coefficients and basis data.  Rebuilding the overlap matrix
+        with those values can therefore leave a small residual, particularly
+        for post-SCF or TD calculations.  ``tol`` is applied to the
+        Frobenius-norm residual divided by the number of orbitals.
+        """
 
         if self.mo_identity:
             return
@@ -232,7 +260,12 @@ class MoleculeData:
             self.mo_identity = True
             return
 
-    def _check_mo_identity_on_grid(self, basis_vals: np.ndarray, grid_size: list[float], tol: float = 1e-2) -> None:
+    def _check_mo_identity_on_grid(
+        self,
+        basis_vals: np.ndarray,
+        grid_size: Sequence[float],
+        tol: float = 1e-2,
+    ) -> None:
         """
         Check MO orthonormality on a real-space grid with uniform volume weights.
 
@@ -256,6 +289,7 @@ class MoleculeData:
         return 
 
     def _evaluate_ao_on_grid(self, grid_points: np.ndarray) -> np.ndarray:
+        """Evaluate all stored AO basis functions at Cartesian grid points."""
 
         if self.shell_type == "mixed":
             mol_cart = self._build_mol(cart=True)
@@ -290,12 +324,13 @@ class MoleculeData:
 
     def evaluate_mo_on_grid(
         self,
-        mo_index : int | str,
-        padding : float = 2.0,
-        grid_setting : str = "size",
-        grid_size : list[float] = [0.3333, 0.3333, 0.3333],
-        grid_shape : list[int] = [100, 100, 100],
+        mo_index: int | str,
+        padding: float = 2.0,
+        grid_setting: str = "size",
+        grid_size: Sequence[float] = (0.3333, 0.3333, 0.3333),
+        grid_shape: Sequence[int] = (100, 100, 100),
     ) -> None:
+        """Evaluate one selected MO on a regular Cartesian grid."""
 
         if self.file_type == "cube":
             return
@@ -357,13 +392,13 @@ class MoleculeData:
         return
 
 
-def load_inp(inp_file : str) -> MoleculeData:
+def load_inp(inp_file: str) -> MoleculeData:
+    """Load a supported molecular file as normalized ``MoleculeData``."""
 
     _, ext = os.path.basename(inp_file).rsplit(".", 1)
     if ext.lower() == "cube":
         cube_info = load_cube(inp_file)
         data = MoleculeData(**cube_info)
-
     elif ext.lower() == "fchk":
         fchk_info = load_fchk(inp_file)
         data = MoleculeData(**fchk_info)

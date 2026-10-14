@@ -1,50 +1,13 @@
+"""Camera geometry helpers shared by the public API and renderer."""
+
+from collections.abc import Sequence
+from typing import TypeAlias
+
 import numpy as np
 
-
-def parse_reference_vector(ref_input: list[float] | None, coords: np.ndarray) -> np.ndarray | None:
-    """
-    Parse reference vector input: distinguish between atom indices and coordinates.
-    
-    Parameters
-    ----------
-    ref_input : list[float] | None
-        Input values from command line (can be floats or integers).
-        - 2 values: interpreted as atom indices [idx1, idx2] -> vector = coords[idx2] - coords[idx1]
-        - 3 values: interpreted as direct coordinates [X, Y, Z]
-    coords : np.ndarray
-        Atomic coordinates with shape (n_atoms, 3).
-    
-    Returns
-    -------
-    np.ndarray | None
-        Reference vector as a 3-element array, or None if ref_input is None.
-    """
-    if ref_input is None:
-        return None
-    
-    ref_input = list(ref_input)
-    
-    if len(ref_input) == 2:
-        # Interpret as atom indices
-        try:
-            idx1, idx2 = int(ref_input[0]), int(ref_input[1])
-        except (ValueError, TypeError):
-            raise ValueError(f"Cannot parse {ref_input} as atom indices")
-        
-        if idx1 < 0 or idx2 < 0 or idx1 >= len(coords) or idx2 >= len(coords):
-            raise IndexError(f"Atom indices out of range: {idx1}, {idx2}")
-        
-        return coords[idx2] - coords[idx1]
-    
-    elif len(ref_input) == 3:
-        # Interpret as direct 3D vector
-        try:
-            return np.array([float(v) for v in ref_input], dtype=float)
-        except (ValueError, TypeError):
-            raise ValueError(f"Cannot parse {ref_input} as 3D coordinates")
-    
-    else:
-        raise ValueError(f"Reference vector must have 2 (atom indices) or 3 (coordinates) values, got {len(ref_input)}")
+VectorInput: TypeAlias = Sequence[float] | np.ndarray
+CameraValue: TypeAlias = list[float] | np.ndarray | None
+CameraPosition: TypeAlias = tuple[CameraValue, CameraValue, CameraValue]
 
 
 AXIS_VIEW_CONFIG = {
@@ -73,7 +36,7 @@ def _normalize_vector(vector: np.ndarray, label: str) -> np.ndarray:
     return vector / norm
 
 
-def _coerce_atom_indices(atom_indices) -> np.ndarray:
+def _coerce_atom_indices(atom_indices: int | Sequence[int] | np.ndarray) -> np.ndarray:
     if isinstance(atom_indices, (int, np.integer)):
         indices = np.array([int(atom_indices)], dtype=int)
     else:
@@ -83,7 +46,106 @@ def _coerce_atom_indices(atom_indices) -> np.ndarray:
     return indices
 
 
-def infer_center_from_atom_indices(coords, atom_indices):
+def parse_reference_vector(
+    ref_input: Sequence[float] | np.ndarray | None,
+    coords: np.ndarray,
+) -> np.ndarray | None:
+    """Convert CLI reference values into a three-dimensional vector.
+
+    Two values are interpreted as atom indices and three values as a direct
+    vector. ``None`` disables sign disambiguation.
+    """
+    if ref_input is None:
+        return None
+
+    ref_input = list(ref_input)
+
+    if len(ref_input) == 2:
+        # Interpret as atom indices
+        try:
+            idx1, idx2 = int(ref_input[0]), int(ref_input[1])
+        except (ValueError, TypeError):
+            raise ValueError(f"Cannot parse {ref_input} as atom indices")
+
+        if idx1 < 0 or idx2 < 0 or idx1 >= len(coords) or idx2 >= len(coords):
+            raise IndexError(f"Atom indices out of range: {idx1}, {idx2}")
+
+        return coords[idx2] - coords[idx1]
+
+    elif len(ref_input) == 3:
+        # Interpret as direct 3D vector
+        try:
+            return np.array([float(v) for v in ref_input], dtype=float)
+        except (ValueError, TypeError):
+            raise ValueError(f"Cannot parse {ref_input} as 3D coordinates")
+
+    else:
+        raise ValueError(f"Reference vector must have 2 (atom indices) or 3 (coordinates) values, got {len(ref_input)}")
+
+
+def resolve_camera_position(
+    coords: np.ndarray,
+    camera_pos: CameraValue = None,
+    camera_focal: CameraValue = None,
+    camera_up: CameraValue = None,
+    camera_axis: str | None = None,
+    camera_focal_atoms: int | Sequence[int] | np.ndarray | None = None,
+    camera_axis_atoms: int | Sequence[int] | np.ndarray | None = None,
+    camera_up_atoms: int | Sequence[int] | np.ndarray | None = None,
+    camera_axis_reference: VectorInput | None = None,
+    camera_up_reference: VectorInput | None = None,
+    padding: float = 2.0,
+) -> CameraPosition:
+    """Resolve the camera position from the public camera options.
+
+    The precedence matches :func:`pymovis.savemo`: atom-defined axes take
+    precedence over ``camera_axis``; an explicitly supplied ``camera_up``
+    always overrides an inferred up direction.
+    """
+    coords = np.asarray(coords, dtype=float)
+    parsed_axis_reference = parse_reference_vector(camera_axis_reference, coords)
+    parsed_up_reference = parse_reference_vector(camera_up_reference, coords)
+
+    resolved_pos = camera_pos
+    resolved_focal = camera_focal
+    resolved_up = camera_up
+
+    if camera_focal_atoms is not None and camera_focal is None:
+        resolved_focal = infer_center_from_atom_indices(coords, camera_focal_atoms)
+
+    if camera_axis_atoms is not None or camera_up_atoms is not None:
+        if camera_axis_atoms is None or camera_up_atoms is None:
+            raise ValueError(
+                "camera_axis_atoms and camera_up_atoms must be specified together"
+            )
+        resolved_pos, resolved_focal, resolved_up = infer_atom_axis_camera_fit_from_coords(
+            coords,
+            camera_axis_atoms,
+            camera_up_atoms,
+            padding=padding,
+            center=resolved_focal,
+            camera_axis_reference=parsed_axis_reference,
+            camera_up_reference=parsed_up_reference,
+        )
+    elif camera_axis is not None:
+        resolved_pos, resolved_focal, resolved_up = infer_axis_camera_fit_from_coords(
+            coords,
+            camera_axis,
+            padding=padding,
+            center=resolved_focal,
+        )
+
+    if camera_up is not None:
+        resolved_up = camera_up
+
+    return resolved_pos, resolved_focal, resolved_up
+
+
+def infer_center_from_atom_indices(
+    coords: np.ndarray,
+    atom_indices: int | Sequence[int] | np.ndarray,
+) -> np.ndarray:
+    """Return one atom position or the centroid of selected atoms."""
     coords = np.asarray(coords, dtype=float)
     indices = _coerce_atom_indices(atom_indices)
     if np.any(indices < 0) or np.any(indices >= coords.shape[0]):
@@ -95,13 +157,17 @@ def infer_center_from_atom_indices(coords, atom_indices):
     return selected.mean(axis=0)
 
 
-def infer_axis_from_atom_indices(coords, atom_indices, reference=None):
+def infer_axis_from_atom_indices(
+    coords: np.ndarray,
+    atom_indices: int | Sequence[int] | np.ndarray,
+    reference: VectorInput | None = None,
+) -> np.ndarray:
     """
     Infer an axis direction from selected atoms.
-    
+
     For two atoms: direction from first to second.
     For three or more atoms: best-fit plane normal (SVD).
-    
+
     Parameters
     ----------
     coords : array-like
@@ -112,7 +178,7 @@ def infer_axis_from_atom_indices(coords, atom_indices, reference=None):
         Reference vector to fix the sign of the result.
         If provided, the returned axis is flipped if its dot product
         with the reference is negative.
-    
+
     Returns
     -------
     np.ndarray
@@ -136,7 +202,7 @@ def infer_axis_from_atom_indices(coords, atom_indices, reference=None):
         _, _, vh = np.linalg.svd(centered, full_matrices=False)
         normal = vh[-1]
         axis = _normalize_vector(normal, "axis")
-    
+
     # Apply reference vector to fix sign if provided
     if reference is not None:
         reference = np.asarray(reference, dtype=float)
@@ -144,11 +210,14 @@ def infer_axis_from_atom_indices(coords, atom_indices, reference=None):
             raise ValueError("reference must be a 3-element vector")
         if np.dot(axis, reference) < 0:
             axis = -axis
-    
+
     return axis
 
 
-def _orthonormal_camera_basis(view_axis, up_axis):
+def _orthonormal_camera_basis(
+    view_axis: VectorInput,
+    up_axis: VectorInput,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     view_axis = _normalize_vector(np.asarray(view_axis, dtype=float), "view")
     up_axis = _normalize_vector(np.asarray(up_axis, dtype=float), "up")
 
@@ -160,16 +229,17 @@ def _orthonormal_camera_basis(view_axis, up_axis):
 
 
 def _fit_camera_from_basis(
-    coords,
-    view_axis,
-    up_axis,
+    coords: np.ndarray,
+    view_axis: VectorInput,
+    up_axis: VectorInput,
     padding: float = 2.0,
     window_size: tuple[int, int] = (1024, 768),
     vertical_fov_deg: float = 30.0,
     safety_factor: float = 1.05,
     min_distance: float = 1.0,
     center: np.ndarray | list[float] | tuple[float, float, float] | None = None,
-):
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Fit a camera distance and orientation to a coordinate cloud."""
     coords = np.asarray(coords, dtype=float)
     if coords.ndim != 2 or coords.shape[1] != 3 or coords.shape[0] == 0:
         raise ValueError("coords must be a non-empty array with shape (n_atoms, 3)")
@@ -217,7 +287,7 @@ def _fit_camera_from_basis(
 
 
 def infer_axis_camera_fit_from_coords(
-    coords,
+    coords: np.ndarray,
     axis: str,
     padding: float = 2.0,
     window_size: tuple[int, int] = (1024, 768),
@@ -225,7 +295,7 @@ def infer_axis_camera_fit_from_coords(
     safety_factor: float = 1.05,
     min_distance: float = 1.0,
     center: np.ndarray | list[float] | tuple[float, float, float] | None = None,
-):
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Determine an axis-aligned camera that fits the whole molecule + padding.
 
@@ -271,11 +341,11 @@ def infer_axis_camera_fit_from_coords(
     if axis_key not in AXIS_VIEW_CONFIG:
         raise ValueError("axis must be one of 'X', 'Y', 'Z' (optionally with '-' prefix)")
     basis = AXIS_VIEW_CONFIG[axis_key]
-    
+
     view_axis = np.asarray(basis["view"], dtype=float)
     if invert:
         view_axis = -view_axis
-    
+
     return _fit_camera_from_basis(
         coords,
         view_axis,
@@ -290,18 +360,18 @@ def infer_axis_camera_fit_from_coords(
 
 
 def infer_atom_axis_camera_fit_from_coords(
-    coords,
-    camera_axis_atoms,
-    camera_up_atoms,
+    coords: np.ndarray,
+    camera_axis_atoms: int | Sequence[int] | np.ndarray,
+    camera_up_atoms: int | Sequence[int] | np.ndarray,
     padding: float = 2.0,
     window_size: tuple[int, int] = (1024, 768),
     vertical_fov_deg: float = 30.0,
     safety_factor: float = 1.05,
     min_distance: float = 1.0,
     center: np.ndarray | list[float] | tuple[float, float, float] | None = None,
-    camera_axis_reference: np.ndarray | list[float] | tuple[float, float, float] | None = None,
-    camera_up_reference: np.ndarray | list[float] | tuple[float, float, float] | None = None,
-):
+    camera_axis_reference: VectorInput | None = None,
+    camera_up_reference: VectorInput | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Determine camera settings from atom-index-defined axis and up directions.
 
@@ -353,5 +423,3 @@ def infer_atom_axis_camera_fit_from_coords(
         min_distance=min_distance,
         center=center,
     )
-
-
